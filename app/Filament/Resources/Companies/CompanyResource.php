@@ -8,10 +8,8 @@ use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\Schemas\CompanyForm;
 use App\Filament\Resources\Companies\Tables\CompaniesTable;
 use App\Models\Company;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -20,7 +18,7 @@ class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-building-storefront';
 
     public static function form(Schema $schema): Schema
     {

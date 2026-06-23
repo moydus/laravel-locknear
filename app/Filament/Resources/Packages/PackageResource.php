@@ -8,17 +8,15 @@ use App\Filament\Resources\Packages\Pages\ListPackages;
 use App\Filament\Resources\Packages\Schemas\PackageForm;
 use App\Filament\Resources\Packages\Tables\PackagesTable;
 use App\Models\Package;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class PackageResource extends Resource
 {
     protected static ?string $model = Package::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-rectangle-stack';
 
     public static function form(Schema $schema): Schema
     {
