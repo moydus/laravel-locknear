@@ -26,7 +26,6 @@ RUN composer install --no-dev --no-scripts --no-interaction --prefer-dist
 COPY . .
 
 RUN composer dump-autoload --optimize \
-    && php artisan optimize \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
@@ -35,7 +34,9 @@ COPY deploy/nginx.conf /etc/nginx/nginx.conf
 
 # ── Supervisor ─────────────────────────────────────────────────────────────
 COPY deploy/supervisord.conf /etc/supervisord.conf
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/entrypoint.sh"]
