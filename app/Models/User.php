@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,9 +15,9 @@ use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'email', 'password', 'role', 'google_id'])]
+#[Fillable(['name', 'email', 'password', 'role', 'google_id', 'is_admin'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements MustVerifyEmail, FilamentUser
 {
     public const ROLE_CUSTOMER = 'customer';
 
@@ -23,6 +25,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /** @use HasFactory<UserFactory> */
     use HasFactory, MustVerifyEmailTrait, Notifiable, HasApiTokens;
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        $allowed = array_map('trim', explode(',', env('FILAMENT_ADMIN_EMAILS', '')));
+        return in_array($this->email, $allowed, true);
+    }
 
     public function company(): HasOne
     {
