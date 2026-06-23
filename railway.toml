@@ -1,0 +1,25 @@
+# Railway project: locknear
+#
+# Project structure (create each manually in Railway dashboard):
+#
+#   Service: web       → start command below   → api.locknear.com
+#   Service: worker    → railway/run-worker.sh  → (no domain)
+#   Service: reverb    → railway/run-reverb.sh  → ws.locknear.com
+#   Service: cron      → railway/run-cron.sh    → (no domain)
+#   Plugin:  Redis     → add via "+ New → Database → Redis"
+#   Service: meili     → Docker image: getmeili/meilisearch:v1.12
+#
+# All services share the same env vars (Railway "shared variables" or copy).
+# Redis URL: use variable reference ${{Redis.REDIS_URL}} in each service.
+# Meili URL: use ${{meili.MEILI_URL}} or set MEILISEARCH_HOST manually.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "php artisan serve --host=0.0.0.0 --port=$PORT"
+healthcheckPath = "/up"
+healthcheckTimeout = 30
+
+[[deploy.preDeploy]]
+command = "chmod +x ./railway/init-app.sh && sh ./railway/init-app.sh"

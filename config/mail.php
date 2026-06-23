@@ -65,6 +65,10 @@ return [
             'transport' => 'resend',
         ],
 
+        'cloudflare' => [
+            'transport' => 'cloudflare',
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
@@ -82,10 +86,11 @@ return [
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
-                'smtp',
+                'cloudflare',
+                'resend',
                 'log',
             ],
-            'retry_after' => 60,
+            'retry_after' => 0,
         ],
 
         'roundrobin' => [

@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Company;
+use App\Mail\VerifyEmailMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -25,24 +26,26 @@ class AuthController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'role' => User::ROLE_BUSINESS,
         ]);
 
-        $company = Company::create([
+        $company = \App\Models\Company::create([
             'user_id' => $user->id,
             'name' => $validated['company_name'],
             'slug' => str($validated['company_name'])->slug()->append('-' . $user->id),
         ]);
 
+        try {
+            Mail::to($user)->send(new VerifyEmailMail($user));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         $token = $user->createToken('app-locknear')->plainTextToken;
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'company' => ['id' => $company->id, 'name' => $company->name],
-            ],
+            'user' => $this->formatUser($user->fresh()->load('company')),
         ], 201);
     }
 
@@ -61,17 +64,17 @@ class AuthController extends Controller
             ]);
         }
 
+        if (!$user->isBusiness()) {
+            throw ValidationException::withMessages([
+                'email' => ['This is a customer account. Sign in at locknear.com.'],
+            ]);
+        }
+
         $token = $user->createToken('app-locknear')->plainTextToken;
-        $company = $user->company ?? null;
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'company' => $company ? ['id' => $company->id, 'name' => $company->name] : null,
-            ],
+            'user' => $this->formatUser($user->load('company')),
         ]);
     }
 
@@ -79,5 +82,30 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Logged out']);
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'user' => $this->formatUser($request->user()->load('company')),
+        ]);
+    }
+
+    private function formatUser(User $user): array
+    {
+        $company = $user->company;
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'email_verified_at' => $user->email_verified_at?->toIso8601String(),
+            'company' => $company ? [
+                'id' => $company->id,
+                'name' => $company->name,
+                'business_type' => $company->business_type,
+                'onboarding_completed_at' => $company->onboarding_completed_at?->toIso8601String(),
+            ] : null,
+        ];
     }
 }
