@@ -26,7 +26,8 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->id('admin')
-            ->path('admin')
+            ->domain(config('app.admin_domain', 'admin.locknear.com'))
+            ->path('')
             ->login()
             ->colors([
                 'primary' => Color::Amber,
