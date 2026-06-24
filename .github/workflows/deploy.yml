@@ -1,0 +1,28 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 159.195.192.115
+          username: locknear-deployer
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /var/www/laravel-locknear
+            git pull origin main
+            composer install --no-dev --optimize-autoloader --no-interaction
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan migrate --force
+            sudo supervisorctl restart locknear-horizon
+            sudo supervisorctl restart locknear-reverb
+            sudo supervisorctl restart locknear-scheduler
+            echo "Deploy tamamlandı"
