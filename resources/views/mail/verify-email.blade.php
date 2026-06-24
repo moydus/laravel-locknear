@@ -12,7 +12,7 @@
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:480px;">
                     <tr>
                         <td style="padding-bottom:24px;">
-                            <div style="display:inline-block;width:36px;height:36px;border-radius:10px;background:#000000;color:#ffffff;text-align:center;line-height:36px;font-size:16px;font-weight:600;">L</div>
+                            <img src="https://cdn.locknear.com/logo.png" alt="LockNear" style="height:36px;width:auto;display:block;">
                         </td>
                     </tr>
                     <tr>

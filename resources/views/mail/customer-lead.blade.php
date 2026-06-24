@@ -12,7 +12,7 @@
                 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;border:1px solid #e5e5e5;overflow:hidden;">
                     <tr>
                         <td style="padding:28px 28px 8px;">
-                            <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#737373;">LockNear</p>
+                            <img src="https://cdn.locknear.com/logo.png" alt="LockNear" style="height:32px;width:auto;display:block;margin-bottom:12px;">
                             <h1 style="margin:0;font-size:24px;line-height:1.3;color:#111111;">{{ $headline }}</h1>
                         </td>
                     </tr>
