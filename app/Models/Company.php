@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CompanyLifecycleStatus;
 use App\Enums\ProviderStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -21,9 +22,9 @@ class Company extends Model
         'google_place_id', 'formatted_address', 'address_components', 'place_source', 'place_verified_at',
         'latitude', 'longitude',
         'license_number', 'is_insured', 'is_verified', 'is_active', 'provider_status', 'is_online', 'is_claimed',
-        'claimed_at', 'last_seen_at', 'claim_token', 'source',
+        'claimed_at', 'last_seen_at', 'claim_token', 'source', 'source_last_synced_at',
         'logo_url', 'stripe_customer_id', 'service_areas', 'rating', 'review_count',
-        'business_type', 'timezone', 'onboarding_completed_at',
+        'business_type', 'timezone', 'lifecycle_status', 'onboarding_completed_at',
     ];
 
     protected $casts = [
@@ -34,11 +35,13 @@ class Company extends Model
         'is_claimed' => 'boolean',
         'claimed_at' => 'datetime',
         'last_seen_at' => 'datetime',
+        'source_last_synced_at' => 'datetime',
         'onboarding_completed_at' => 'datetime',
         'place_verified_at' => 'datetime',
         'address_components' => 'array',
         'service_areas' => 'array',
         'provider_status' => ProviderStatus::class,
+        'lifecycle_status' => CompanyLifecycleStatus::class,
         'latitude' => 'decimal:7',
         'longitude' => 'decimal:7',
         'rating' => 'decimal:2',
@@ -76,6 +79,21 @@ class Company extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    public function sources(): HasMany
+    {
+        return $this->hasMany(CompanySource::class);
+    }
+
+    public function claims(): HasMany
+    {
+        return $this->hasMany(CompanyClaim::class);
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ProviderInvitation::class);
     }
 
     public function activeSubscription(): ?\App\Models\Subscription

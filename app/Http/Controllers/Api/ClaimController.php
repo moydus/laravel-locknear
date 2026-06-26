@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\CompanyLifecycleStatus;
+use App\Enums\ProviderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\CompanyClaim;
+use App\Models\ProviderInvitation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -62,10 +66,33 @@ class ClaimController extends Controller
             'user_id'     => $user->id,
             'is_claimed'  => true,
             'is_active'   => true,
+            'provider_status' => ProviderStatus::Verified,
+            'lifecycle_status' => CompanyLifecycleStatus::Active,
             'claimed_at'  => now(),
             'claim_token' => null,       // tek kullanım
             'source'      => 'claimed',
         ]);
+
+        CompanyClaim::create([
+            'company_id' => $company->id,
+            'user_id' => $user->id,
+            'status' => 'approved',
+            'verification_method' => 'claim_token',
+            'verification_channel' => 'link',
+            'verification_target' => $company->phone ?: $company->email,
+            'claimed_at' => now(),
+            'approved_at' => now(),
+            'metadata' => ['source' => 'claim_link'],
+        ]);
+
+        ProviderInvitation::query()
+            ->where('company_id', $company->id)
+            ->whereNull('accepted_at')
+            ->update([
+                'status' => 'accepted',
+                'accepted_at' => now(),
+                'updated_at' => now(),
+            ]);
 
         return response()->json([
             'success' => true,
@@ -100,8 +127,21 @@ class ClaimController extends Controller
             'state'      => strtoupper($validated['state']),
             'is_claimed' => true,
             'is_active'  => false,  // admin onayı veya profil tamamlanması gerekiyor
+            'provider_status' => ProviderStatus::Pending,
+            'lifecycle_status' => CompanyLifecycleStatus::ClaimPending,
             'claimed_at' => now(),
             'source'     => 'manual',
+        ]);
+
+        CompanyClaim::create([
+            'company_id' => $company->id,
+            'user_id' => $user->id,
+            'status' => 'pending',
+            'verification_method' => 'manual',
+            'verification_channel' => 'app',
+            'verification_target' => $validated['phone'],
+            'claimed_at' => now(),
+            'metadata' => ['source' => 'manual_signup'],
         ]);
 
         return response()->json([
