@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProviderStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,14 +16,14 @@ class Company extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'user_id', 'name', 'slug', 'phone', 'email', 'website', 'description',
+        'user_id', 'public_id', 'name', 'slug', 'phone', 'email', 'website', 'description',
         'address', 'city', 'state', 'zip',
         'google_place_id', 'formatted_address', 'address_components', 'place_source', 'place_verified_at',
         'latitude', 'longitude',
-        'license_number', 'is_insured', 'is_verified', 'is_active', 'is_online', 'is_claimed',
+        'license_number', 'is_insured', 'is_verified', 'is_active', 'provider_status', 'is_online', 'is_claimed',
         'claimed_at', 'last_seen_at', 'claim_token', 'source',
         'logo_url', 'stripe_customer_id', 'service_areas', 'rating', 'review_count',
-        'business_type', 'onboarding_completed_at',
+        'business_type', 'timezone', 'onboarding_completed_at',
     ];
 
     protected $casts = [
@@ -37,6 +38,7 @@ class Company extends Model
         'place_verified_at' => 'datetime',
         'address_components' => 'array',
         'service_areas' => 'array',
+        'provider_status' => ProviderStatus::class,
         'latitude' => 'decimal:7',
         'longitude' => 'decimal:7',
         'rating' => 'decimal:2',
