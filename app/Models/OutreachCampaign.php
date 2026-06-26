@@ -31,4 +31,9 @@ class OutreachCampaign extends Model
     {
         return $this->hasMany(ProviderInvitation::class);
     }
+
+    public function crmActivities(): HasMany
+    {
+        return $this->hasMany(ProviderCrmActivity::class);
+    }
 }

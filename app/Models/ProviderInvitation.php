@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProviderInvitation extends Model
 {
@@ -27,5 +28,15 @@ class ProviderInvitation extends Model
     public function campaign(): BelongsTo
     {
         return $this->belongsTo(OutreachCampaign::class, 'outreach_campaign_id');
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(OutreachMessage::class);
+    }
+
+    public function crmActivities(): HasMany
+    {
+        return $this->hasMany(ProviderCrmActivity::class);
     }
 }

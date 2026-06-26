@@ -86,6 +86,11 @@ class Company extends Model
         return $this->hasMany(CompanySource::class);
     }
 
+    public function identities(): HasMany
+    {
+        return $this->hasMany(CompanyIdentity::class);
+    }
+
     public function claims(): HasMany
     {
         return $this->hasMany(CompanyClaim::class);
@@ -94,6 +99,31 @@ class Company extends Model
     public function invitations(): HasMany
     {
         return $this->hasMany(ProviderInvitation::class);
+    }
+
+    public function providerAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ProviderAccount::class);
+    }
+
+    public function providerUsers(): HasMany
+    {
+        return $this->hasMany(ProviderAccountUser::class);
+    }
+
+    public function growthScore(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ProviderGrowthScore::class);
+    }
+
+    public function crmActivities(): HasMany
+    {
+        return $this->hasMany(ProviderCrmActivity::class);
+    }
+
+    public function devices(): HasMany
+    {
+        return $this->hasMany(ProviderDevice::class);
     }
 
     public function activeSubscription(): ?\App\Models\Subscription
