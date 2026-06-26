@@ -1,0 +1,213 @@
+openapi: 3.1.0
+info:
+  title: LockNear API
+  version: 1.0.0
+  description: Emergency service dispatch API for bookings, dispatch, jobs, payments, and provider operations.
+servers:
+  - url: https://api.locknear.com/api/v1
+paths:
+  /bookings:
+    post:
+      summary: Create a customer booking and pricing snapshot.
+      operationId: createBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Booking created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /bookings/{bookingId}/dispatch:
+    post:
+      summary: Start dispatch for a booking.
+      operationId: startDispatch
+      parameters:
+        - $ref: "#/components/parameters/BookingId"
+      responses:
+        "202":
+          description: Dispatch started.
+  /dispatch/offers/{offerId}/accept:
+    post:
+      summary: Provider accepts a dispatch offer.
+      operationId: acceptDispatchOffer
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Offer accepted.
+  /dispatch/offers/{offerId}/decline:
+    post:
+      summary: Provider declines a dispatch offer.
+      operationId: declineDispatchOffer
+      parameters:
+        - $ref: "#/components/parameters/OfferId"
+      responses:
+        "200":
+          description: Offer declined.
+  /jobs/{jobId}/en-route:
+    post:
+      summary: Mark service provider en route.
+      operationId: markJobEnRoute
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job updated.
+  /jobs/{jobId}/arrive:
+    post:
+      summary: Mark provider arrived.
+      operationId: markJobArrived
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job updated.
+  /jobs/{jobId}/start:
+    post:
+      summary: Mark job work started.
+      operationId: startJobWork
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job updated.
+  /jobs/{jobId}/complete:
+    post:
+      summary: Complete a job and trigger payment capture.
+      operationId: completeJob
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [final_amount_cents]
+              properties:
+                final_amount_cents:
+                  type: integer
+                  minimum: 0
+                tip_amount_cents:
+                  type: integer
+                  minimum: 0
+                  default: 0
+      responses:
+        "200":
+          description: Job completed.
+  /payments/{paymentIntentId}/capture:
+    post:
+      summary: Capture an authorized payment.
+      operationId: capturePayment
+      parameters:
+        - $ref: "#/components/parameters/PaymentIntentId"
+      responses:
+        "200":
+          description: Payment captured.
+  /payments/{paymentIntentId}/refund:
+    post:
+      summary: Refund a payment.
+      operationId: refundPayment
+      parameters:
+        - $ref: "#/components/parameters/PaymentIntentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_cents, reason]
+              properties:
+                amount_cents:
+                  type: integer
+                  minimum: 1
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Payment refunded.
+components:
+  parameters:
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Public booking id, for example LK-8F2X91.
+    OfferId:
+      name: offerId
+      in: path
+      required: true
+      schema:
+        type: string
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    PaymentIntentId:
+      name: paymentIntentId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    CreateBookingRequest:
+      type: object
+      required: [service_type, customer, address, idempotency_key]
+      properties:
+        service_type:
+          type: string
+          examples: [car-lockout]
+        customer:
+          type: object
+          required: [phone]
+          properties:
+            name:
+              type: string
+            phone:
+              type: string
+            email:
+              type: string
+              format: email
+        address:
+          type: object
+          required: [address, zip]
+          properties:
+            address:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zip:
+              type: string
+            latitude:
+              type: number
+            longitude:
+              type: number
+        idempotency_key:
+          type: string
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, searching, matched, accepted, en_route, arrived, working, completed, cancelled, refunded]
+        estimated_min_amount_cents:
+          type: integer
+        estimated_max_amount_cents:
+          type: integer
+        currency:
+          type: string
+          examples: [usd]
