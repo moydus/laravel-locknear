@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\ProviderServiceArea;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -140,7 +141,11 @@ class CompanyController extends Controller
             'is_online'          => ['sometimes', 'boolean'],
             'service_areas'      => ['sometimes', 'nullable', 'array'],
             'service_areas.*'    => ['string', 'size:5'],
+            'service_radius_miles' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:250'],
         ]);
+
+        $serviceRadiusMiles = $validated['service_radius_miles'] ?? null;
+        unset($validated['service_radius_miles']);
 
         if (!empty($validated['google_place_id'])) {
             $validated['place_source'] = $validated['place_source'] ?? 'google';
@@ -173,6 +178,10 @@ class CompanyController extends Controller
 
         if (!$company->is_active && $company->phone && $company->address) {
             $company->update(['is_active' => true]);
+        }
+
+        if ($serviceRadiusMiles !== null || $this->hasCoverageUpdate($validated)) {
+            $this->syncPrimaryServiceArea($company->fresh(), $serviceRadiusMiles);
         }
 
         return response()->json(['data' => $this->companyWithPresence($company->fresh())]);
@@ -237,7 +246,63 @@ class CompanyController extends Controller
     private function companyWithPresence(Company $company): array
     {
         $data = $company->makeHidden(['stripe_customer_id', 'claim_token'])->toArray();
+        $activeArea = $company->providerServiceAreas()
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        $data['service_radius_miles'] = $activeArea?->radius_miles;
+        $data['provider_service_area'] = $activeArea ? [
+            'id' => $activeArea->id,
+            'city' => $activeArea->city,
+            'state' => $activeArea->state,
+            'zip' => $activeArea->zip,
+            'latitude' => $activeArea->latitude,
+            'longitude' => $activeArea->longitude,
+            'radius_miles' => $activeArea->radius_miles,
+            'version' => $activeArea->version,
+        ] : null;
 
         return array_merge($data, $company->presencePayload());
+    }
+
+    private function hasCoverageUpdate(array $validated): bool
+    {
+        return collect(['city', 'state', 'zip', 'latitude', 'longitude', 'address'])
+            ->contains(fn (string $field) => array_key_exists($field, $validated));
+    }
+
+    private function syncPrimaryServiceArea(Company $company, ?int $radiusMiles): void
+    {
+        $area = $company->providerServiceAreas()
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        $payload = [
+            'city' => $company->city,
+            'state' => $company->state,
+            'zip' => $company->zip,
+            'latitude' => $company->latitude,
+            'longitude' => $company->longitude,
+            'radius_miles' => $radiusMiles ?? $area?->radius_miles ?? 25,
+            'is_active' => true,
+            'effective_at' => $area?->effective_at ?? now(),
+            'metadata' => array_filter([
+                'address' => $company->address,
+                'source' => 'provider_dashboard',
+            ]),
+        ];
+
+        if ($area) {
+            $area->update($payload);
+            return;
+        }
+
+        ProviderServiceArea::create([
+            'company_id' => $company->id,
+            'version' => 1,
+            ...$payload,
+        ]);
     }
 }

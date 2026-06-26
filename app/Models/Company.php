@@ -126,6 +126,11 @@ class Company extends Model
         return $this->hasMany(ProviderDevice::class);
     }
 
+    public function providerServiceAreas(): HasMany
+    {
+        return $this->hasMany(ProviderServiceArea::class);
+    }
+
     public function activeSubscription(): ?\App\Models\Subscription
     {
         return $this->subscription()
