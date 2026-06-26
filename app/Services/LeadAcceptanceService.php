@@ -4,9 +4,12 @@ namespace App\Services;
 
 use App\Events\DispatchStatusChanged;
 use App\Exceptions\LeadBillingException;
+use App\Models\Booking;
 use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
+use App\Models\PaymentIntent;
+use App\Models\ServiceJob;
 use App\Support\LeadPricing;
 use Illuminate\Support\Facades\DB;
 
@@ -65,6 +68,28 @@ class LeadAcceptanceService
                 'status' => 'assigned',
                 'assigned_at' => $lead->assigned_at ?? now(),
             ]);
+
+            $booking = Booking::where('lead_id', $lead->id)->first();
+            if ($booking) {
+                $booking->update([
+                    'company_id' => $company->id,
+                    'status' => 'accepted',
+                ]);
+
+                ServiceJob::firstOrCreate(
+                    ['booking_id' => $booking->id],
+                    [
+                        'lead_id' => $lead->id,
+                        'company_id' => $company->id,
+                        'status' => 'accepted',
+                        'accepted_at' => now(),
+                    ],
+                );
+
+                PaymentIntent::where('booking_id', $booking->id)
+                    ->whereNull('company_id')
+                    ->update(['company_id' => $company->id]);
+            }
 
             return $assignment->fresh(['lead', 'company']);
         });

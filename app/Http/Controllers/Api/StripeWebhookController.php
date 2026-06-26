@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Package;
+use App\Models\PaymentIntent as LockNearPaymentIntent;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -30,6 +31,10 @@ class StripeWebhookController extends Controller
             'customer.subscription.created',
             'customer.subscription.updated'  => $this->upsertSubscription($event->data->object),
             'customer.subscription.deleted'  => $this->cancelSubscription($event->data->object),
+            'payment_intent.amount_capturable_updated',
+            'payment_intent.succeeded',
+            'payment_intent.canceled',
+            'payment_intent.payment_failed' => $this->syncPaymentIntent($event->data->object),
             default                          => null,
         };
 
@@ -82,5 +87,34 @@ class StripeWebhookController extends Controller
         if ($companyId) {
             Company::find($companyId)?->update(['is_active' => false]);
         }
+    }
+
+    private function syncPaymentIntent(object $intent): void
+    {
+        $local = LockNearPaymentIntent::where('processor_intent_id', $intent->id)->first();
+        if (!$local) {
+            return;
+        }
+
+        $capturedCents = (int) ($intent->amount_received ?? 0);
+        $latestCharge = is_string($intent->latest_charge ?? null)
+            ? $intent->latest_charge
+            : ($intent->latest_charge?->id ?? null);
+
+        $local->update([
+            'status' => $intent->status,
+            'processor_charge_id' => $latestCharge,
+            'captured_amount' => number_format($capturedCents / 100, 2, '.', ''),
+            'captured_amount_cents' => $capturedCents,
+            'authorized_at' => $intent->status === 'requires_capture'
+                ? ($local->authorized_at ?? now())
+                : $local->authorized_at,
+            'captured_at' => $intent->status === 'succeeded'
+                ? ($local->captured_at ?? now())
+                : $local->captured_at,
+            'cancelled_at' => $intent->status === 'canceled'
+                ? ($local->cancelled_at ?? now())
+                : $local->cancelled_at,
+        ]);
     }
 }

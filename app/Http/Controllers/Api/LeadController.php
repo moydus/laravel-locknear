@@ -9,12 +9,15 @@ use App\Exceptions\LeadBillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
+use App\Models\PaymentIntent;
 use App\Services\DispatchService;
 use App\Services\LeadAcceptanceService;
+use App\Services\PaymentEngine;
 use App\Support\LeadPricing;
 use App\Support\LockNearUrls;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -263,6 +266,27 @@ class LeadController extends Controller
             return response()->json(['error' => 'No company'], 403);
         }
 
+        $paymentCapture = null;
+        $paymentIntent = PaymentIntent::where('lead_id', $lead->id)
+            ->where('company_id', $company->id)
+            ->where('status', 'requires_capture')
+            ->latest('id')
+            ->first();
+
+        if ($paymentIntent) {
+            try {
+                $paymentCapture = app(PaymentEngine::class)->capture([
+                    'payment_intent_id' => $paymentIntent->id,
+                    'idempotency_key' => 'lead_complete_capture_' . $lead->id,
+                ]);
+            } catch (RuntimeException $e) {
+                return response()->json([
+                    'error' => $e->getMessage(),
+                    'code' => 'payment_capture_failed',
+                ], 402);
+            }
+        }
+
         $result = $this->updateAssignmentStatus($request, $lead, 'completed');
         if ($result->status() !== 200) {
             return $result;
@@ -279,6 +303,7 @@ class LeadController extends Controller
             'success' => true,
             'lead_status' => 'completed',
             'assignment_status' => 'completed',
+            'payment_capture' => $paymentCapture,
         ]);
     }
 

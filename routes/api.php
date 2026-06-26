@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\LeadMessageController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\PaymentIntentController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\StripeWebhookController;
@@ -55,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
 // Public API routes (Astro site uses these — X-API-Key required)
 Route::middleware(['throttle:5,1', 'api.key'])->group(function () {
     Route::post('/leads', [LeadController::class, 'store']);
+    Route::post('/payment-intents', [PaymentIntentController::class, 'store']);
     Route::post('/contact', [ContactController::class, 'store']);
 });
 
@@ -166,6 +168,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
     Route::post('/subscription/portal', [SubscriptionController::class, 'portal']);
     Route::get('/billing/lead-charges', [BillingController::class, 'leadCharges']);
+
+    // Payment operations for authorized dispatch
+    Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorize']);
+    Route::post('/payment-intents/{paymentIntent}/capture', [PaymentIntentController::class, 'capture']);
+    Route::post('/payment-intents/{paymentIntent}/cancel', [PaymentIntentController::class, 'cancel']);
+    Route::post('/payment-intents/{paymentIntent}/refund', [PaymentIntentController::class, 'refund']);
 
     // Lead management for companies
     Route::get('/leads/stats', [LeadController::class, 'stats']);
