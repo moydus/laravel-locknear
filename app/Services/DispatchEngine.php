@@ -13,6 +13,7 @@ class DispatchEngine
         private DispatchRuleEngine $rules,
         private ProviderRankingEngine $ranking,
         private DispatchService $legacyDispatch,
+        private DomainEventRecorder $events,
     ) {}
 
     public function dispatch(Lead $lead): int
@@ -58,21 +59,10 @@ class DispatchEngine
 
     private function recordEvent(string $type, Lead $lead, array $payload = []): void
     {
-        if (!DB::getSchemaBuilder()->hasTable('domain_events')) {
-            return;
-        }
-
-        DB::table('domain_events')->insert([
-            'event_type' => $type,
+        $this->events->record($type, $lead, $payload, [
             'booking_id' => DB::table('bookings')->where('lead_id', $lead->id)->value('id'),
             'company_id' => $payload['company_id'] ?? null,
             'user_id' => $lead->user_id,
-            'aggregate_type' => Lead::class,
-            'aggregate_id' => $lead->id,
-            'payload' => json_encode($payload),
-            'occurred_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
     }
 }
