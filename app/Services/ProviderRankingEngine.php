@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\ETAProvider;
 use App\Models\Company;
 use App\Models\Lead;
 use Illuminate\Support\Collection;
@@ -9,7 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class ProviderRankingEngine
 {
-    public function __construct(private DispatchRuleEngine $rules) {}
+    public function __construct(
+        private DispatchRuleEngine $rules,
+        private ETAProvider $etaProvider,
+    ) {}
 
     public function score(Company $provider, Lead $lead, ?array $strategy = null): array
     {
@@ -70,30 +74,12 @@ class ProviderRankingEngine
 
     public function distance(Company $provider, Lead $lead): ?float
     {
-        if (!$provider->latitude || !$provider->longitude || !$lead->latitude || !$lead->longitude) {
-            return null;
-        }
-
-        $earthMiles = 3958.7613;
-        $providerLat = deg2rad((float) $provider->latitude);
-        $leadLat = deg2rad((float) $lead->latitude);
-        $deltaLat = deg2rad((float) $lead->latitude - (float) $provider->latitude);
-        $deltaLng = deg2rad((float) $lead->longitude - (float) $provider->longitude);
-
-        $a = sin($deltaLat / 2) ** 2
-            + cos($providerLat) * cos($leadLat) * sin($deltaLng / 2) ** 2;
-
-        return round($earthMiles * 2 * atan2(sqrt($a), sqrt(1 - $a)), 2);
+        return $this->etaProvider->distanceMiles($provider, $lead);
     }
 
     public function eta(Company $provider, Lead $lead): ?int
     {
-        $distance = $this->distance($provider, $lead);
-        if ($distance === null) {
-            return null;
-        }
-
-        return max(5, (int) ceil(($distance / 22) * 60));
+        return $this->etaProvider->etaMinutes($provider, $lead);
     }
 
     public function quality(Company $provider): float

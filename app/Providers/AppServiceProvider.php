@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\ETAProvider;
+use App\Contracts\PricingProvider;
 use App\Events\LeadCompleted;
 use App\Listeners\SendPostJobSurvey;
+use App\Services\ETA\HaversineETAProvider;
+use App\Services\Pricing\RuleBasedPricingProvider;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -13,7 +17,11 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    public function register(): void {}
+    public function register(): void
+    {
+        $this->app->bind(ETAProvider::class, HaversineETAProvider::class);
+        $this->app->bind(PricingProvider::class, RuleBasedPricingProvider::class);
+    }
 
     public function boot(): void
     {
