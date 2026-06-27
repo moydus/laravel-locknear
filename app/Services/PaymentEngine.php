@@ -7,6 +7,7 @@ use App\Models\Commission;
 use App\Models\Lead;
 use App\Models\PaymentIntent as LockNearPaymentIntent;
 use App\Models\PaymentTransaction;
+use App\Models\Payout;
 use App\Models\Refund;
 use Illuminate\Support\Arr;
 use RuntimeException;
@@ -51,11 +52,6 @@ class PaymentEngine
                 'idempotency_key' => $idempotencyKey,
             ], fn ($value) => $value !== null && $value !== ''),
         ];
-
-        if (!empty($payload['company_id'])) {
-            $destination = $this->destinationChargePayload((int) $payload['company_id'], $amountCents);
-            $stripePayload = array_merge($stripePayload, $destination);
-        }
 
         $stripeIntent = $this->stripe()->paymentIntents->create(
             array_filter($stripePayload, fn ($value) => $value !== null),
@@ -147,11 +143,14 @@ class PaymentEngine
         );
 
         if ($local->company_id && $capturedCents > 0) {
-            $this->recordCommission($local, $transaction, $capturedCents);
+            $commission = $this->recordCommission($local, $transaction, $capturedCents);
+            $payout = $this->createProviderTransfer($local, $commission, $payload);
         }
 
         return array_merge($this->intentResponse($local, $stripeIntent), [
             'transaction_id' => $transaction->id,
+            'payout_id' => $payout->id ?? null,
+            'stripe_transfer_id' => $payout->stripe_transfer_id ?? null,
         ]);
     }
 
@@ -208,7 +207,30 @@ class PaymentEngine
 
     public function payout(array $payload): array
     {
-        return ['status' => 'pending_integration', 'payload' => $payload];
+        $intent = $this->resolveLocalIntent($payload);
+        $transaction = PaymentTransaction::where('payment_intent_id', $intent->id)
+            ->where('type', 'capture')
+            ->latest('id')
+            ->first();
+
+        if (!$transaction) {
+            throw new RuntimeException('Captured payment transaction not found.');
+        }
+
+        $commission = Commission::where('payment_transaction_id', $transaction->id)->first();
+        if (!$commission) {
+            throw new RuntimeException('Commission record not found.');
+        }
+
+        $payout = $this->createProviderTransfer($intent, $commission, $payload);
+
+        return [
+            'status' => $payout->status,
+            'payout_id' => $payout->id,
+            'stripe_transfer_id' => $payout->stripe_transfer_id,
+            'net_amount_cents' => $payout->net_amount_cents,
+            'currency' => $payout->currency,
+        ];
     }
 
     public function chargeProviderLeadFee(Company $company, Lead $lead, float $amount, ?string $existingChargeId = null): ?string
@@ -288,11 +310,11 @@ class PaymentEngine
         return number_format($cents / 100, 2, '.', '');
     }
 
-    protected function recordCommission(LockNearPaymentIntent $intent, PaymentTransaction $transaction, int $capturedCents): void
+    protected function recordCommission(LockNearPaymentIntent $intent, PaymentTransaction $transaction, int $capturedCents): Commission
     {
         $pricing = app(PricingEngine::class)->calculate($capturedCents);
 
-        Commission::updateOrCreate(
+        return Commission::updateOrCreate(
             [
                 'booking_id' => $intent->booking_id,
                 'payment_transaction_id' => $transaction->id,
@@ -320,23 +342,98 @@ class PaymentEngine
         );
     }
 
-    protected function destinationChargePayload(int $companyId, int $amountCents): array
+    protected function createProviderTransfer(LockNearPaymentIntent $intent, Commission $commission, array $payload = []): ?Payout
     {
-        $company = Company::with('payoutAccount')->find($companyId);
-        $account = $company?->payoutAccount;
-
-        if (!$account?->stripe_account_id || !$account->charges_enabled) {
-            return [];
+        if (!$intent->company_id) {
+            return null;
         }
 
-        $pricing = app(PricingEngine::class)->calculate($amountCents);
+        $company = Company::with('payoutAccount')->find($intent->company_id);
+        $account = $company?->payoutAccount;
 
-        return [
-            'application_fee_amount' => $pricing['platform_fee_cents'],
-            'transfer_data' => [
+        $payout = Payout::query()
+            ->where('company_id', $intent->company_id)
+            ->where('metadata->payment_intent_id', $intent->id)
+            ->first();
+
+        if (!$payout) {
+            $payout = Payout::create([
+                'status' => 'pending',
+                'gross_amount' => $commission->service_total,
+                'gross_amount_cents' => $commission->service_total_cents,
+                'fee_amount' => $commission->platform_fee,
+                'fee_amount_cents' => $commission->platform_fee_cents,
+                'net_amount' => $commission->provider_amount,
+                'net_amount_cents' => $commission->provider_amount_cents,
+                'currency' => $intent->currency,
+                'processor' => 'stripe',
+                'stripe_account_id' => $account?->stripe_account_id,
+                'scheduled_at' => now(),
+                'metadata' => [
+                    'payment_intent_id' => $intent->id,
+                    'processor_intent_id' => $intent->processor_intent_id,
+                    'commission_id' => $commission->id,
+                    'mode' => 'separate_charges_and_transfers',
+                ],
+            ]);
+        }
+
+        if ($payout->stripe_transfer_id) {
+            return $payout;
+        }
+
+        if (!$account?->stripe_account_id || !$account->payouts_enabled) {
+            $payout->update([
+                'status' => 'pending',
+                'stripe_account_id' => $account?->stripe_account_id,
+                'metadata' => [
+                    ...($payout->metadata ?? []),
+                    'hold_reason' => $account?->stripe_account_id ? 'payouts_not_enabled' : 'stripe_account_missing',
+                ],
+            ]);
+
+            return $payout->fresh();
+        }
+
+        if (!$intent->processor_charge_id) {
+            $payout->update([
+                'status' => 'pending',
+                'metadata' => [
+                    ...($payout->metadata ?? []),
+                    'hold_reason' => 'stripe_charge_missing',
+                ],
+            ]);
+
+            return $payout->fresh();
+        }
+
+        $transfer = $this->stripe()->transfers->create(
+            [
+                'amount' => (int) $commission->provider_amount_cents,
+                'currency' => $intent->currency,
                 'destination' => $account->stripe_account_id,
+                'source_transaction' => $intent->processor_charge_id,
+                'metadata' => [
+                    'payment_intent_id' => (string) $intent->id,
+                    'processor_intent_id' => $intent->processor_intent_id,
+                    'commission_id' => (string) $commission->id,
+                    'company_id' => (string) $intent->company_id,
+                ],
             ],
-            'on_behalf_of' => $account->stripe_account_id,
-        ];
+            ['idempotency_key' => $payload['transfer_idempotency_key'] ?? 'transfer_' . $intent->id . '_' . $commission->id],
+        );
+
+        $payout->update([
+            'status' => 'transferred',
+            'stripe_account_id' => $account->stripe_account_id,
+            'stripe_transfer_id' => $transfer->id,
+            'paid_at' => now(),
+            'metadata' => [
+                ...($payout->metadata ?? []),
+                'stripe_transfer_destination' => $transfer->destination,
+            ],
+        ]);
+
+        return $payout->fresh();
     }
 }
