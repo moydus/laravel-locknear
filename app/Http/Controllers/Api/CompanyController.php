@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\ProviderAvailability;
 use App\Models\ProviderServiceArea;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -102,6 +103,10 @@ class CompanyController extends Controller
             $company->forceFill([
                 'last_seen_at' => now(),
             ])->save();
+
+            ProviderAvailability::where('company_id', $company->id)->update([
+                'last_seen_at' => now(),
+            ]);
         }
 
         $company->refresh();
@@ -128,8 +133,8 @@ class CompanyController extends Controller
             'description'        => ['sometimes', 'nullable', 'string', 'max:2000'],
             'address'            => ['sometimes', 'nullable', 'string', 'max:255'],
             'city'               => ['sometimes', 'nullable', 'string', 'max:100'],
-            'state'              => ['sometimes', 'nullable', 'string', 'size:2'],
-            'zip'                => ['sometimes', 'nullable', 'string', 'size:5'],
+            'state'              => ['sometimes', 'nullable', 'string', 'max:100'],
+            'zip'                => ['sometimes', 'nullable', 'string', 'max:20'],
             'latitude'           => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'longitude'          => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'google_place_id'    => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -140,7 +145,7 @@ class CompanyController extends Controller
             'is_insured'         => ['sometimes', 'boolean'],
             'is_online'          => ['sometimes', 'boolean'],
             'service_areas'      => ['sometimes', 'nullable', 'array'],
-            'service_areas.*'    => ['string', 'size:5'],
+            'service_areas.*'    => ['string', 'max:20'],
             'service_radius_miles' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:250'],
         ]);
 

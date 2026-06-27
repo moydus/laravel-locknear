@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\LeadMessageController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PaymentIntentController;
+use App\Http\Controllers\Api\ProviderAvailabilityController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\StripeConnectController;
@@ -159,6 +160,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/company/me/heartbeat', [CompanyController::class, 'heartbeat']);
     Route::post('/company/me/logo', [CompanyController::class, 'uploadLogo']);
     Route::delete('/company/me', [CompanyController::class, 'destroy']);
+
+    // Provider operations
+    Route::get('/provider/availability', [ProviderAvailabilityController::class, 'show']);
+    Route::patch('/provider/availability', [ProviderAvailabilityController::class, 'update']);
 
     // Services
     Route::get('/services', [ServiceController::class, 'index']);

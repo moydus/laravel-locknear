@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 use Laravel\Scout\Searchable;
 
@@ -106,6 +107,11 @@ class Company extends Model
         return $this->hasOne(ProviderAccount::class);
     }
 
+    public function providerAvailability(): HasOne
+    {
+        return $this->hasOne(ProviderAvailability::class);
+    }
+
     public function payoutAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(ProviderPayoutAccount::class);
@@ -146,22 +152,26 @@ class Company extends Model
 
     public function availabilityStatus(): string
     {
-        if (!$this->is_online) {
+        $availability = $this->providerAvailability;
+        $isOnline = $availability?->is_online ?? $this->is_online;
+        $lastSeenAt = $availability?->last_seen_at ?? $this->last_seen_at;
+
+        if (!$isOnline) {
             return 'offline';
         }
 
-        if (!$this->last_seen_at) {
+        if (!$lastSeenAt) {
             return 'away';
         }
 
         $onlineCutoff = now()->subMinutes(config('locknear.presence.online_minutes', 1));
         $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));
 
-        if ($this->last_seen_at->gte($onlineCutoff)) {
+        if ($lastSeenAt->gte($onlineCutoff)) {
             return 'online';
         }
 
-        if ($this->last_seen_at->gte($awayCutoff)) {
+        if ($lastSeenAt->gte($awayCutoff)) {
             return 'away';
         }
 
@@ -171,24 +181,37 @@ class Company extends Model
     public function isDispatchEligible(): bool
     {
         $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));
+        $availability = $this->providerAvailability;
+        $isOnline = $availability?->is_online ?? $this->is_online;
+        $lastSeenAt = $availability?->last_seen_at ?? $this->last_seen_at;
 
         return $this->is_active
-            && $this->is_online
-            && $this->last_seen_at
-            && $this->last_seen_at->gte($awayCutoff);
+            && $isOnline
+            && $lastSeenAt
+            && $lastSeenAt->gte($awayCutoff);
     }
 
     public static function markStaleOffline(): int
     {
         $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));
 
-        return static::query()
+        $count = static::query()
             ->where('is_online', true)
             ->where(function ($query) use ($awayCutoff) {
                 $query->whereNull('last_seen_at')
                     ->orWhere('last_seen_at', '<', $awayCutoff);
             })
             ->update(['is_online' => false]);
+
+        ProviderAvailability::query()
+            ->where('is_online', true)
+            ->where(function ($query) use ($awayCutoff) {
+                $query->whereNull('last_seen_at')
+                    ->orWhere('last_seen_at', '<', $awayCutoff);
+            })
+            ->update(['is_online' => false]);
+
+        return $count;
     }
 
     public function ensureClaimToken(): string
