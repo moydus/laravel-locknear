@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Events\DispatchStatusChanged;
 use App\Events\LeadCompleted;
 use App\Events\ProviderLocationUpdated;
+use App\Enums\BookingState;
 use App\Exceptions\LeadBillingException;
 use App\Http\Controllers\Controller;
+use App\Models\Booking;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
 use App\Models\PaymentIntent;
@@ -40,6 +42,7 @@ class LeadController extends Controller
             'formatted_address' => ['nullable', 'string', 'max:500'],
             'address_components'=> ['nullable', 'array'],
             'place_source'      => ['nullable', 'string', 'in:google,manual,gps'],
+            'payment_intent_id' => ['nullable', 'integer', 'exists:payment_intents,id'],
         ]);
 
         $customer = null;
@@ -66,6 +69,38 @@ class LeadController extends Controller
             'user_agent'     => $request->userAgent(),
             'source'         => $request->header('Referer', 'direct'),
         ]);
+
+        if (!empty($validated['payment_intent_id'])) {
+            $paymentIntent = PaymentIntent::whereKey($validated['payment_intent_id'])
+                ->whereNull('lead_id')
+                ->first();
+
+            if ($paymentIntent) {
+                $booking = Booking::firstOrCreate(
+                    ['lead_id' => $lead->id],
+                    [
+                        'public_id' => 'LK-' . strtoupper(Str::random(8)),
+                        'status' => $paymentIntent->authorized_at
+                            ? BookingState::Searching->value
+                            : BookingState::Pending->value,
+                        'estimated_min_amount' => $paymentIntent->metadata['estimated_min'] ?? null,
+                        'estimated_max_amount' => $paymentIntent->metadata['estimated_max'] ?? null,
+                        'currency' => $paymentIntent->currency ?? config('locknear.pricing.default_currency', 'usd'),
+                        'authorized_at' => $paymentIntent->authorized_at,
+                        'customer_timezone' => $paymentIntent->metadata['timezone'] ?? null,
+                        'metadata' => [
+                            'source' => 'astro_authorized_dispatch',
+                            'payment_intent_id' => $paymentIntent->id,
+                        ],
+                    ],
+                );
+
+                $paymentIntent->update([
+                    'lead_id' => $lead->id,
+                    'booking_id' => $booking->id,
+                ]);
+            }
+        }
 
         dispatch(function () use ($lead) {
             $dispatch = app(DispatchService::class);

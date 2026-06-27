@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\BookingState;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Package;
@@ -118,6 +119,26 @@ class StripeWebhookController extends Controller
                 ? ($local->cancelled_at ?? now())
                 : $local->cancelled_at,
         ]);
+
+        if ($local->booking) {
+            if ($intent->status === 'requires_capture') {
+                $local->booking->update([
+                    'status' => BookingState::Searching->value,
+                    'authorized_at' => $local->authorized_at ?? now(),
+                ]);
+            } elseif ($intent->status === 'succeeded') {
+                $local->booking->update([
+                    'paid_at' => $local->captured_at ?? now(),
+                    'final_amount' => number_format($capturedCents / 100, 2, '.', ''),
+                    'status' => BookingState::Completed->value,
+                ]);
+            } elseif ($intent->status === 'canceled') {
+                $local->booking->update([
+                    'cancelled_at' => $local->cancelled_at ?? now(),
+                    'status' => BookingState::Cancelled->value,
+                ]);
+            }
+        }
     }
 
     private function syncConnectedAccount(object $account): void
