@@ -358,6 +358,7 @@ class PaymentEngine
 
         if (!$payout) {
             $payout = Payout::create([
+                'company_id' => $intent->company_id,
                 'status' => 'pending',
                 'gross_amount' => $commission->service_total,
                 'gross_amount_cents' => $commission->service_total_cents,
