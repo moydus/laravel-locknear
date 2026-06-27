@@ -106,6 +106,11 @@ class Company extends Model
         return $this->hasOne(ProviderAccount::class);
     }
 
+    public function payoutAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ProviderPayoutAccount::class);
+    }
+
     public function providerUsers(): HasMany
     {
         return $this->hasMany(ProviderAccountUser::class);

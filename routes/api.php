@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PaymentIntentController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\StripeConnectController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\SubscriptionController;
 use Illuminate\Http\Request;
@@ -168,6 +169,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscription/checkout', [SubscriptionController::class, 'checkout']);
     Route::post('/subscription/portal', [SubscriptionController::class, 'portal']);
     Route::get('/billing/lead-charges', [BillingController::class, 'leadCharges']);
+
+    // Stripe Connect Express for provider payouts
+    Route::get('/connect/account', [StripeConnectController::class, 'status']);
+    Route::post('/connect/account/onboarding', [StripeConnectController::class, 'onboarding']);
+    Route::post('/connect/account/login', [StripeConnectController::class, 'login']);
 
     // Payment operations for authorized dispatch
     Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorize']);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\Package;
 use App\Models\PaymentIntent as LockNearPaymentIntent;
+use App\Models\ProviderPayoutAccount;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -35,6 +36,7 @@ class StripeWebhookController extends Controller
             'payment_intent.succeeded',
             'payment_intent.canceled',
             'payment_intent.payment_failed' => $this->syncPaymentIntent($event->data->object),
+            'account.updated' => $this->syncConnectedAccount($event->data->object),
             default                          => null,
         };
 
@@ -115,6 +117,35 @@ class StripeWebhookController extends Controller
             'cancelled_at' => $intent->status === 'canceled'
                 ? ($local->cancelled_at ?? now())
                 : $local->cancelled_at,
+        ]);
+    }
+
+    private function syncConnectedAccount(object $account): void
+    {
+        $local = ProviderPayoutAccount::where('stripe_account_id', $account->id)->first();
+        if (!$local) {
+            return;
+        }
+
+        $requirements = $account->requirements?->toArray() ?? [];
+        $chargesEnabled = (bool) $account->charges_enabled;
+        $payoutsEnabled = (bool) $account->payouts_enabled;
+        $detailsSubmitted = (bool) $account->details_submitted;
+
+        $local->update([
+            'status' => $chargesEnabled && $payoutsEnabled
+                ? 'active'
+                : ($detailsSubmitted ? 'pending_verification' : 'onboarding_required'),
+            'charges_enabled' => $chargesEnabled,
+            'payouts_enabled' => $payoutsEnabled,
+            'onboarded_at' => $detailsSubmitted ? ($local->onboarded_at ?? now()) : null,
+            'requirements' => $requirements,
+            'metadata' => [
+                ...($local->metadata ?? []),
+                'details_submitted' => $detailsSubmitted,
+                'default_currency' => $account->default_currency ?? null,
+                'country' => $account->country ?? null,
+            ],
         ]);
     }
 }

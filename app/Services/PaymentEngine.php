@@ -52,6 +52,11 @@ class PaymentEngine
             ], fn ($value) => $value !== null && $value !== ''),
         ];
 
+        if (!empty($payload['company_id'])) {
+            $destination = $this->destinationChargePayload((int) $payload['company_id'], $amountCents);
+            $stripePayload = array_merge($stripePayload, $destination);
+        }
+
         $stripeIntent = $this->stripe()->paymentIntents->create(
             array_filter($stripePayload, fn ($value) => $value !== null),
             ['idempotency_key' => $idempotencyKey],
@@ -313,5 +318,25 @@ class PaymentEngine
                 'metadata' => ['source' => 'stripe_capture'],
             ],
         );
+    }
+
+    protected function destinationChargePayload(int $companyId, int $amountCents): array
+    {
+        $company = Company::with('payoutAccount')->find($companyId);
+        $account = $company?->payoutAccount;
+
+        if (!$account?->stripe_account_id || !$account->charges_enabled) {
+            return [];
+        }
+
+        $pricing = app(PricingEngine::class)->calculate($amountCents);
+
+        return [
+            'application_fee_amount' => $pricing['platform_fee_cents'],
+            'transfer_data' => [
+                'destination' => $account->stripe_account_id,
+            ],
+            'on_behalf_of' => $account->stripe_account_id,
+        ];
     }
 }
