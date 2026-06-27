@@ -16,6 +16,14 @@ use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PaymentIntentController;
 use App\Http\Controllers\Api\ProviderAvailabilityController;
+use App\Http\Controllers\Api\ProviderClaimCenterController;
+use App\Http\Controllers\Api\ProviderCoverageController;
+use App\Http\Controllers\Api\ProviderCustomerController;
+use App\Http\Controllers\Api\ProviderDocumentController;
+use App\Http\Controllers\Api\ProviderEarningsController;
+use App\Http\Controllers\Api\ProviderMetricsController;
+use App\Http\Controllers\Api\ProviderReviewController;
+use App\Http\Controllers\Api\ProviderTeamController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\StripeConnectController;
@@ -164,6 +172,20 @@ Route::middleware('auth:sanctum')->group(function () {
     // Provider operations
     Route::get('/provider/availability', [ProviderAvailabilityController::class, 'show']);
     Route::patch('/provider/availability', [ProviderAvailabilityController::class, 'update']);
+    Route::get('/provider/coverage', [ProviderCoverageController::class, 'show']);
+    Route::patch('/provider/coverage', [ProviderCoverageController::class, 'update']);
+    Route::get('/provider/metrics', [ProviderMetricsController::class, 'index']);
+    Route::get('/provider/team', [ProviderTeamController::class, 'index']);
+    Route::post('/provider/team', [ProviderTeamController::class, 'store']);
+    Route::patch('/provider/team/{member}', [ProviderTeamController::class, 'update']);
+    Route::delete('/provider/team/{member}', [ProviderTeamController::class, 'destroy']);
+    Route::get('/provider/documents', [ProviderDocumentController::class, 'index']);
+    Route::post('/provider/documents', [ProviderDocumentController::class, 'store']);
+    Route::get('/provider/reviews', [ProviderReviewController::class, 'index']);
+    Route::post('/provider/reviews/{review}/response', [ProviderReviewController::class, 'respond']);
+    Route::get('/provider/earnings', [ProviderEarningsController::class, 'index']);
+    Route::get('/provider/customers', [ProviderCustomerController::class, 'index']);
+    Route::get('/provider/claim-center', [ProviderClaimCenterController::class, 'show']);
 
     // Services
     Route::get('/services', [ServiceController::class, 'index']);
@@ -199,4 +221,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/leads/{lead}/arrived', [LeadController::class, 'markArrived']);
     Route::post('/leads/{lead}/complete', [LeadController::class, 'complete']);
     Route::post('/leads/{lead}/location', [LeadController::class, 'updateLocation']);
+
+    // Jobs aliases for provider panel naming
+    Route::get('/jobs/stats', [LeadController::class, 'stats']);
+    Route::get('/jobs', [LeadController::class, 'index']);
+    Route::get('/jobs/{lead}', [LeadController::class, 'show']);
+    Route::get('/jobs/{lead}/stream', [LeadController::class, 'stream']);
+    Route::post('/jobs/{lead}/accept', [LeadController::class, 'accept']);
+    Route::post('/jobs/{lead}/reject', [LeadController::class, 'reject']);
+    Route::post('/jobs/{lead}/en-route', [LeadController::class, 'markEnRoute']);
+    Route::post('/jobs/{lead}/arrived', [LeadController::class, 'markArrived']);
+    Route::post('/jobs/{lead}/complete', [LeadController::class, 'complete']);
+    Route::post('/jobs/{lead}/location', [LeadController::class, 'updateLocation']);
 });

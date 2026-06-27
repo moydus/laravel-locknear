@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProviderAccountUser extends Model
 {
     protected $fillable = [
-        'company_id', 'user_id', 'role', 'status', 'permissions', 'invited_at',
+        'company_id', 'user_id', 'email', 'role', 'status', 'permissions', 'invited_at',
         'joined_at', 'metadata',
     ];
 

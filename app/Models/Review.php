@@ -13,7 +13,8 @@ class Review extends Model
     protected $fillable = [
         'company_id', 'lead_id', 'reviewer_name', 'reviewer_email',
         'rating', 'speed_rating', 'communication_rating', 'professionalism_rating',
-        'price_rating', 'body', 'is_verified', 'is_published',
+        'price_rating', 'body', 'provider_response', 'provider_responded_at',
+        'is_verified', 'is_published',
     ];
 
     protected $casts = [
@@ -22,6 +23,7 @@ class Review extends Model
         'communication_rating' => 'integer',
         'professionalism_rating' => 'integer',
         'price_rating' => 'integer',
+        'provider_responded_at' => 'datetime',
         'is_verified' => 'boolean',
         'is_published' => 'boolean',
     ];
