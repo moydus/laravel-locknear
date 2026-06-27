@@ -7,6 +7,7 @@ use App\Services\StripeConnectService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
+use Stripe\Exception\ApiErrorException;
 
 class StripeConnectController extends Controller
 {
@@ -21,7 +22,7 @@ class StripeConnectController extends Controller
 
         try {
             $account = $this->connect->status($company);
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException|ApiErrorException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
@@ -37,7 +38,7 @@ class StripeConnectController extends Controller
 
         try {
             $result = $this->connect->onboardingLink($company);
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException|ApiErrorException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
@@ -58,7 +59,7 @@ class StripeConnectController extends Controller
 
         try {
             $url = $this->connect->loginLink($company);
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException|ApiErrorException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
 

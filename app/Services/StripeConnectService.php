@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\ProviderPayoutAccount;
 use RuntimeException;
 use Stripe\StripeClient;
+use Throwable;
 
 class StripeConnectService
 {
@@ -33,7 +34,7 @@ class StripeConnectService
         ]);
 
         if (!$account->stripe_account_id) {
-            $stripeAccount = $this->stripe()->accounts->create(array_filter([
+            $stripeAccount = $this->withoutAccountsV2Notice(fn () => $this->stripe()->accounts->create(array_filter([
                 'type' => 'express',
                 'country' => 'US',
                 'email' => $company->email,
@@ -51,7 +52,7 @@ class StripeConnectService
                     'company_id' => (string) $company->id,
                     'source' => 'locknear_provider_dashboard',
                 ],
-            ], fn ($value) => $value !== null));
+            ], fn ($value) => $value !== null)));
 
             $account->update([
                 'stripe_account_id' => $stripeAccount->id,
@@ -66,12 +67,12 @@ class StripeConnectService
     {
         $account = $this->createOrRefreshAccount($company);
 
-        $link = $this->stripe()->accountLinks->create([
+        $link = $this->withoutAccountsV2Notice(fn () => $this->stripe()->accountLinks->create([
             'account' => $account->stripe_account_id,
             'refresh_url' => $this->providerUrl('/billing?stripe_refresh=1'),
             'return_url' => $this->providerUrl('/billing?stripe_return=1'),
             'type' => 'account_onboarding',
-        ]);
+        ]));
 
         return [
             'url' => $link->url,
@@ -86,7 +87,7 @@ class StripeConnectService
             return null;
         }
 
-        return $this->stripe()->accounts->createLoginLink($account->stripe_account_id)->url;
+        return $this->withoutAccountsV2Notice(fn () => $this->stripe()->accounts->createLoginLink($account->stripe_account_id)->url);
     }
 
     public function sync(ProviderPayoutAccount $account): ProviderPayoutAccount
@@ -95,7 +96,7 @@ class StripeConnectService
             return $account;
         }
 
-        $stripeAccount = $this->stripe()->accounts->retrieve($account->stripe_account_id);
+        $stripeAccount = $this->withoutAccountsV2Notice(fn () => $this->stripe()->accounts->retrieve($account->stripe_account_id));
         $requirements = $stripeAccount->requirements?->toArray() ?? [];
         $chargesEnabled = (bool) $stripeAccount->charges_enabled;
         $payoutsEnabled = (bool) $stripeAccount->payouts_enabled;
@@ -133,5 +134,26 @@ class StripeConnectService
     protected function providerUrl(string $path): string
     {
         return rtrim(config('services.provider_url'), '/') . $path;
+    }
+
+    /**
+     * stripe-php 22 emits Stripe-Notice headers as PHP warnings. Laravel converts
+     * warnings to exceptions in production, so the non-blocking Accounts v2
+     * recommendation can break Connect onboarding.
+     */
+    protected function withoutAccountsV2Notice(callable $callback): mixed
+    {
+        set_error_handler(function (int $severity, string $message): bool {
+            return $severity === E_USER_WARNING
+                && str_contains($message, 'Accounts v2');
+        });
+
+        try {
+            return $callback();
+        } catch (Throwable $e) {
+            throw $e;
+        } finally {
+            restore_error_handler();
+        }
     }
 }
