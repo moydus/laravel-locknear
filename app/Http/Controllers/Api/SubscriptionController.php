@@ -23,7 +23,10 @@ class SubscriptionController extends Controller
     {
         $packages = Package::where('is_active', true)
             ->orderBy('sort_order')
-            ->get(['id', 'name', 'slug', 'description', 'price_monthly', 'price_yearly', 'features', 'max_leads_per_month']);
+            ->get([
+                'id', 'name', 'slug', 'description', 'price_monthly', 'price_yearly',
+                'commission_monthly', 'commission_yearly', 'features', 'max_leads_per_month',
+            ]);
 
         return response()->json(['data' => $packages]);
     }
@@ -71,7 +74,11 @@ class SubscriptionController extends Controller
             'cancel_url'            => $appUrl . '/subscription?cancelled=1',
             'subscription_data'     => [
                 'trial_period_days' => 14,
-                'metadata'          => ['company_id' => $company->id, 'package_id' => $package->id],
+                'metadata'          => [
+                    'company_id' => $company->id,
+                    'package_id' => $package->id,
+                    'interval' => $validated['interval'],
+                ],
             ],
             'allow_promotion_codes' => true,
         ]);
@@ -107,7 +114,7 @@ class SubscriptionController extends Controller
 
         return response()->json([
             'data' => $subscription
-                ? $subscription->load('package:id,name,slug,price_monthly,max_leads_per_month')
+                ? $subscription->load('package:id,name,slug,price_monthly,price_yearly,commission_monthly,commission_yearly,max_leads_per_month')
                 : null,
         ]);
     }

@@ -22,7 +22,7 @@ class CompanyController extends Controller
         $query = Company::where('is_active', true)
             ->with('services:id,company_id,service_type,is_active')
             ->select([
-                'id', 'name', 'slug', 'phone', 'city', 'state', 'zip',
+                'id', 'name', 'slug', 'phone', 'website', 'address', 'city', 'state', 'zip',
                 'latitude', 'longitude', 'rating', 'review_count',
                 'is_verified', 'is_claimed', 'logo_url', 'description',
             ]);

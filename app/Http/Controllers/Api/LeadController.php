@@ -99,6 +99,23 @@ class LeadController extends Controller
                     'lead_id' => $lead->id,
                     'booking_id' => $booking->id,
                 ]);
+
+                try {
+                    app(PaymentEngine::class)->authorize([
+                        'payment_intent_id' => $paymentIntent->id,
+                        'idempotency_key' => 'sync_authorized_lead_' . $lead->id,
+                    ]);
+                } catch (RuntimeException) {
+                    // Webhook can still sync this shortly after the customer confirms the card.
+                }
+
+                $paymentIntent = $paymentIntent->fresh();
+                if ($paymentIntent?->authorized_at) {
+                    $booking->update([
+                        'status' => BookingState::Searching->value,
+                        'authorized_at' => $paymentIntent->authorized_at,
+                    ]);
+                }
             }
         }
 

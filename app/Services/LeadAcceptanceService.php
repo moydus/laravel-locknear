@@ -48,12 +48,14 @@ class LeadAcceptanceService
                 return $assignment->load(['lead', 'company']);
             }
 
-            $chargeId = $this->billing->chargeForAccept(
-                $company,
-                $lead,
-                $leadCost,
-                $assignment->stripe_charge_id,
-            );
+            $chargeId = config('locknear.dispatch.lead_billing_enabled', false)
+                ? $this->billing->chargeForAccept(
+                    $company,
+                    $lead,
+                    $leadCost,
+                    $assignment->stripe_charge_id,
+                )
+                : $assignment->stripe_charge_id;
 
             $assignment->fill([
                 'lead_cost' => $leadCost,
@@ -101,12 +103,14 @@ class LeadAcceptanceService
 
         $this->dispatch->sendCustomerConfirmation($lead->fresh(), $company);
 
-        $this->billing->sendProviderReceipt(
-            $company,
-            $lead->fresh(),
-            (float) $assignment->lead_cost,
-            $assignment->stripe_charge_id,
-        );
+        if (config('locknear.dispatch.lead_billing_enabled', false) && $assignment->stripe_charge_id) {
+            $this->billing->sendProviderReceipt(
+                $company,
+                $lead->fresh(),
+                (float) $assignment->lead_cost,
+                $assignment->stripe_charge_id,
+            );
+        }
 
         app(LeadMessageService::class)->postSystemMessage(
             $lead->fresh(),

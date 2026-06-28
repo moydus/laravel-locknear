@@ -25,7 +25,8 @@ return [
   */
   'dispatch' => [
     'accept_token_minutes' => (int) env('LOCKNEAR_DISPATCH_ACCEPT_MINUTES', 30),
-    'require_subscription' => env('LOCKNEAR_DISPATCH_REQUIRE_SUBSCRIPTION', true),
+    'require_subscription' => env('LOCKNEAR_DISPATCH_REQUIRE_SUBSCRIPTION', false),
+    'lead_billing_enabled' => env('LOCKNEAR_LEAD_BILLING_ENABLED', false),
     'strategy' => env('LOCKNEAR_DISPATCH_STRATEGY', 'hybrid'),
     'max_parallel_offers' => (int) env('LOCKNEAR_DISPATCH_MAX_PARALLEL_OFFERS', 3),
     'offer_ttl_seconds' => (int) env('LOCKNEAR_DISPATCH_OFFER_TTL_SECONDS', 60),
@@ -41,7 +42,7 @@ return [
 
   'pricing' => [
     'default_currency' => env('LOCKNEAR_PRICING_CURRENCY', 'usd'),
-    'default_commission_rate' => (float) env('LOCKNEAR_COMMISSION_RATE', 0.15),
+    'default_commission_rate' => (float) env('LOCKNEAR_COMMISSION_RATE', 0.20),
     'surge_enabled' => env('LOCKNEAR_SURGE_ENABLED', false),
     'provider' => env('LOCKNEAR_PRICING_PROVIDER', 'rule_based'),
   ],
@@ -54,11 +55,18 @@ return [
     'ai_pricing' => env('LOCKNEAR_FEATURE_AI_PRICING', false),
   ],
 
+  'outreach' => [
+    'ghost_dispatch_enabled' => env('LOCKNEAR_GHOST_DISPATCH_ENABLED', true),
+    'ghost_dispatch_limit' => (int) env('LOCKNEAR_GHOST_DISPATCH_LIMIT', 20),
+  ],
+
   /*
   |--------------------------------------------------------------------------
   | Provider app (app.locknear.com)
   |--------------------------------------------------------------------------
   */
   'app_url' => env('APP_LOCKNEAR_URL', 'http://localhost:3000'),
+
+  'marketing_url' => env('LOCKNEAR_MARKETING_URL', 'https://locknear.com'),
 
 ];

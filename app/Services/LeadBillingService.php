@@ -20,7 +20,7 @@ class LeadBillingService
     public function isEnabled(): bool
     {
         return (bool) config('services.stripe.secret')
-            && config('services.stripe.lead_billing_enabled', true);
+            && config('services.stripe.lead_billing_enabled', false);
     }
 
     public function chargeForAccept(Company $company, Lead $lead, float $amount, ?string $existingChargeId = null): ?string

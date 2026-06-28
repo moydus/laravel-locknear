@@ -48,6 +48,14 @@ class StripeWebhookController extends Controller
     {
         $companyId = $sub->metadata['company_id'] ?? null;
         $packageId = $sub->metadata['package_id'] ?? null;
+        $price = $sub->items->data[0]->price ?? null;
+        $priceId = $price?->id ?? null;
+        $interval = $sub->metadata['interval']
+            ?? match ($price?->recurring?->interval ?? null) {
+                'year' => 'yearly',
+                'month' => 'monthly',
+                default => null,
+            };
 
         if (!$companyId) return;
 
@@ -57,9 +65,13 @@ class StripeWebhookController extends Controller
         // stripe_price_id ile package eşleştir (yoksa metadata'dan al)
         $package = $packageId
             ? Package::find($packageId)
-            : Package::where('stripe_price_id_monthly', $sub->items->data[0]->price->id)
-                     ->orWhere('stripe_price_id_yearly', $sub->items->data[0]->price->id)
+            : Package::where('stripe_price_id_monthly', $priceId)
+                     ->orWhere('stripe_price_id_yearly', $priceId)
                      ->first();
+
+        if (!$interval && $package && $priceId) {
+            $interval = $priceId === $package->stripe_price_id_yearly ? 'yearly' : 'monthly';
+        }
 
         Subscription::updateOrCreate(
             ['stripe_subscription_id' => $sub->id],
@@ -67,6 +79,7 @@ class StripeWebhookController extends Controller
                 'company_id'           => $companyId,
                 'package_id'           => $package?->id,
                 'status'               => $sub->status,
+                'interval'             => $interval,
                 'trial_ends_at'        => $sub->trial_end ? now()->setTimestamp($sub->trial_end) : null,
                 'current_period_start' => now()->setTimestamp($sub->current_period_start),
                 'current_period_end'   => now()->setTimestamp($sub->current_period_end),

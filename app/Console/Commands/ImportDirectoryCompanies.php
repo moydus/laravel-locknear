@@ -100,6 +100,10 @@ class ImportDirectoryCompanies extends Command
             return $decoded['results'];
         }
 
+        if (isset($decoded['companies']) && is_array($decoded['companies'])) {
+            return $decoded['companies'];
+        }
+
         return is_array($decoded) ? $decoded : [];
     }
 

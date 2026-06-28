@@ -29,7 +29,7 @@ class EmailVerificationController extends Controller
             $user->markEmailAsVerified();
         }
 
-        return redirect($this->appUrl('/auth/verify-email?verified=1'));
+        return redirect($this->appUrl('/onboarding'));
     }
 
     public function resend(Request $request): JsonResponse

@@ -27,7 +27,10 @@ class DispatchService
         $companies = $this->findNearbyCompanies($lead);
 
         if ($companies->isEmpty()) {
-            return 0;
+            return app(GhostOutreachService::class)->inviteForLead(
+                $lead,
+                (int) config('locknear.outreach.ghost_dispatch_limit', 20),
+            );
         }
 
         $sent = 0;
@@ -72,6 +75,13 @@ class DispatchService
             if ($this->sendSms($company->phone, $body)) {
                 $sent++;
             }
+        }
+
+        if ($sent === 0) {
+            return app(GhostOutreachService::class)->inviteForLead(
+                $lead,
+                (int) config('locknear.outreach.ghost_dispatch_limit', 20),
+            );
         }
 
         return $sent;
@@ -171,7 +181,7 @@ class DispatchService
                     ->orWhere('zip', $lead->zip);
             });
 
-        if (config('locknear.dispatch.require_subscription', true)) {
+        if (config('locknear.dispatch.require_subscription', false)) {
             $query->whereHas('subscription', fn ($q) =>
                 $q->whereIn('status', ['active', 'trialing'])
             );

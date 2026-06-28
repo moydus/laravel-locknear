@@ -7,6 +7,7 @@ use App\Enums\ProviderStatus;
 use App\Models\Company;
 use App\Models\CompanyIdentity;
 use App\Models\CompanySource;
+use App\Models\CompanyService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -43,10 +44,12 @@ class DirectoryImportPipeline
                     'zip' => $data['zip'],
                     'latitude' => $data['latitude'],
                     'longitude' => $data['longitude'],
+                    'service_areas' => $data['zip'] ? [$data['zip']] : null,
                     'google_place_id' => $data['google_place_id'],
                     'rating' => $data['rating'] ?? 0,
                     'review_count' => $data['review_count'] ?? 0,
-                    'is_active' => false,
+                    'is_active' => true,
+                    'is_online' => false,
                     'is_claimed' => false,
                     'provider_status' => ProviderStatus::Pending,
                     'lifecycle_status' => CompanyLifecycleStatus::Unclaimed,
@@ -69,6 +72,8 @@ class DirectoryImportPipeline
                     'metadata' => ['raw' => $data['raw']],
                 ],
             );
+
+            $this->syncDefaultServices($company, $data);
 
             CompanyIdentity::updateOrCreate(
                 [
@@ -104,6 +109,44 @@ class DirectoryImportPipeline
 
             return $company;
         });
+    }
+
+    private function syncDefaultServices(Company $company, array $data): void
+    {
+        $rawText = strtolower(json_encode($data['raw'] ?? [], JSON_UNESCAPED_SLASHES) ?: '');
+        $nameText = strtolower((string) $company->name);
+        $text = $nameText . ' ' . $rawText;
+
+        $services = [
+            'emergency-locksmith',
+            '24-hour-locksmith',
+            'mobile-locksmith',
+            'automotive-locksmith',
+            'car-locksmith',
+            'car-lockout',
+            'locked-keys-in-car',
+            'car-key-replacement',
+            'lost-car-keys',
+            'key-fob-programming',
+            'ignition-repair',
+        ];
+
+        if (str_contains($text, 'house') || str_contains($text, 'residential')) {
+            $services[] = 'house-lockout';
+            $services[] = 'residential-locksmith';
+        }
+
+        if (str_contains($text, 'commercial') || str_contains($text, 'business')) {
+            $services[] = 'commercial-locksmith';
+            $services[] = 'office-lockout';
+        }
+
+        foreach (array_unique($services) as $service) {
+            CompanyService::firstOrCreate(
+                ['company_id' => $company->id, 'service_type' => $service],
+                ['price' => null, 'is_active' => true],
+            );
+        }
     }
 
     private function uniqueSlug(string $name): string

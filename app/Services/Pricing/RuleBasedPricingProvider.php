@@ -121,7 +121,7 @@ class RuleBasedPricingProvider implements PricingProvider
             'estimated_max_cents' => $max,
             'authorization_cents' => $max,
             'currency' => config('locknear.pricing.default_currency', 'usd'),
-            'commission_rate' => (float) config('locknear.pricing.default_commission_rate', 0.15),
+            'commission_rate' => (float) config('locknear.pricing.default_commission_rate', 0.20),
             'algorithm_version' => 'fallback-v1',
         ];
     }

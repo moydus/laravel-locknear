@@ -16,7 +16,7 @@ class PricingEngine
 
     public function calculate(int $serviceTotalCents, ?float $commissionRate = null, int $tipCents = 0, int $taxCents = 0, int $discountCents = 0): array
     {
-        $rate = $commissionRate ?? (float) config('locknear.pricing.default_commission_rate', 0.15);
+        $rate = $commissionRate ?? (float) config('locknear.pricing.default_commission_rate', 0.20);
         $platformFee = (int) round(max(0, $serviceTotalCents - $discountCents) * $rate);
         $providerAmount = max(0, $serviceTotalCents + $tipCents + $taxCents - $discountCents - $platformFee);
 

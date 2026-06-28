@@ -56,7 +56,7 @@ return [
         'key'            => env('STRIPE_KEY'),
         'secret'         => env('STRIPE_SECRET'),
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
-        'lead_billing_enabled' => env('STRIPE_LEAD_BILLING_ENABLED', true),
+        'lead_billing_enabled' => env('STRIPE_LEAD_BILLING_ENABLED', env('LOCKNEAR_LEAD_BILLING_ENABLED', false)),
     ],
 
     'frontend_url' => env('FRONTEND_URL', 'https://locknear.com'),

@@ -312,7 +312,8 @@ class PaymentEngine
 
     protected function recordCommission(LockNearPaymentIntent $intent, PaymentTransaction $transaction, int $capturedCents): Commission
     {
-        $pricing = app(PricingEngine::class)->calculate($capturedCents);
+        $commissionContext = $this->resolveCommissionContext($intent->company_id);
+        $pricing = app(PricingEngine::class)->calculate($capturedCents, $commissionContext['rate']);
 
         return Commission::updateOrCreate(
             [
@@ -337,9 +338,49 @@ class PaymentEngine
                 'currency' => $intent->currency,
                 'status' => 'collected',
                 'collected_at' => now(),
-                'metadata' => ['source' => 'stripe_capture'],
+                'metadata' => [
+                    'source' => 'stripe_capture',
+                    'plan' => $commissionContext['plan'],
+                    'subscription_id' => $commissionContext['subscription_id'],
+                    'subscription_interval' => $commissionContext['interval'],
+                ],
             ],
         );
+    }
+
+    protected function resolveCommissionContext(?int $companyId): array
+    {
+        $fallbackRate = (float) config('locknear.pricing.default_commission_rate', 0.20);
+        $context = [
+            'rate' => $fallbackRate,
+            'plan' => 'free',
+            'subscription_id' => null,
+            'interval' => null,
+        ];
+
+        if (!$companyId) {
+            return $context;
+        }
+
+        $company = Company::find($companyId);
+        $subscription = $company?->activeSubscription()?->load('package');
+        $package = $subscription?->package;
+
+        if (!$subscription || !$package) {
+            return $context;
+        }
+
+        $interval = $subscription->interval === 'yearly' ? 'yearly' : 'monthly';
+        $rate = $interval === 'yearly'
+            ? $package->commission_yearly
+            : $package->commission_monthly;
+
+        return [
+            'rate' => $rate !== null ? (float) $rate : $fallbackRate,
+            'plan' => $package->slug,
+            'subscription_id' => $subscription->id,
+            'interval' => $interval,
+        ];
     }
 
     protected function createProviderTransfer(LockNearPaymentIntent $intent, Commission $commission, array $payload = []): ?Payout

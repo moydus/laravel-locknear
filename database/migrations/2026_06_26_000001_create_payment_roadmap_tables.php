@@ -80,7 +80,7 @@ return new class extends Migration
             $table->decimal('estimated_min_amount', 10, 2);
             $table->decimal('estimated_max_amount', 10, 2);
             $table->decimal('authorization_amount', 10, 2)->nullable();
-            $table->decimal('commission_rate', 5, 4)->default(0.1500);
+            $table->decimal('commission_rate', 5, 4)->default(0.2000);
             $table->string('currency', 3)->default('usd');
             $table->string('algorithm_version')->default('v1');
             $table->boolean('is_active')->default(true);
@@ -281,7 +281,7 @@ return new class extends Migration
             $table->decimal('estimated_min_amount', 10, 2);
             $table->decimal('estimated_max_amount', 10, 2);
             $table->decimal('authorization_amount', 10, 2)->nullable();
-            $table->decimal('commission_rate', 5, 4)->default(0.1500);
+            $table->decimal('commission_rate', 5, 4)->default(0.2000);
             $table->string('currency', 3)->default('usd');
             $table->string('algorithm_version')->default('v1');
             $table->json('inputs')->nullable();
@@ -485,7 +485,7 @@ return new class extends Migration
             $table->foreignId('job_id')->nullable()->constrained('service_jobs')->nullOnDelete();
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
             $table->foreignId('payment_transaction_id')->nullable()->constrained()->nullOnDelete();
-            $table->decimal('rate', 5, 4)->default(0.1500);
+            $table->decimal('rate', 5, 4)->default(0.2000);
             $table->decimal('service_total', 10, 2);
             $table->decimal('platform_fee', 10, 2);
             $table->decimal('provider_amount', 10, 2);

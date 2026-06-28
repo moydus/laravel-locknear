@@ -16,8 +16,19 @@ class VerifyEmailMail extends Mailable
 
     public string $verifyUrl;
 
+    public string $logoUrl;
+
+    public string $marketingUrl;
+
     public function __construct(public User $user)
     {
+        $appUrl = rtrim((string) config('locknear.app_url', 'http://localhost:3000'), '/');
+        $this->logoUrl = $appUrl . '/locknear.svg';
+        $this->marketingUrl = rtrim(
+            (string) config('locknear.marketing_url', config('services.frontend_url', 'https://locknear.com')),
+            '/',
+        );
+
         $this->verifyUrl = URL::temporarySignedRoute(
             'verification.verify',
             now()->addHour(),
@@ -31,7 +42,7 @@ class VerifyEmailMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Verify your LockNear account',
+            subject: 'Verify your LockNear provider account',
         );
     }
 
