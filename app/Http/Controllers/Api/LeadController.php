@@ -25,6 +25,21 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class LeadController extends Controller
 {
+    private const AUTHORIZATION_REQUIRED_SERVICES = [
+        'car-lockout',
+        'car-key-replacement',
+        'house-lockout',
+        'lock-rekey',
+        'commercial',
+        'emergency',
+        '24-hour-locksmith',
+        'emergency-locksmith',
+        'locked-keys-in-car',
+        'lost-car-keys',
+        'key-fob-programming',
+        'ignition-repair',
+    ];
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -43,7 +58,28 @@ class LeadController extends Controller
             'address_components'=> ['nullable', 'array'],
             'place_source'      => ['nullable', 'string', 'in:google,manual,gps'],
             'payment_intent_id' => ['nullable', 'integer', 'exists:payment_intents,id'],
+            'authorization_confirmed' => ['nullable', 'boolean'],
+            'authorization_disclaimer_version' => ['nullable', 'string', 'max:64'],
+            'vehicle_make'      => ['nullable', 'string', 'max:100'],
+            'vehicle_model'     => ['nullable', 'string', 'max:100'],
+            'vehicle_year'      => ['nullable', 'string', 'max:10'],
+            'vehicle_color'     => ['nullable', 'string', 'max:100'],
+            'license_plate'     => ['nullable', 'string', 'max:32'],
         ]);
+
+        if (
+            in_array($validated['service_type'], self::AUTHORIZATION_REQUIRED_SERVICES, true)
+            && !$request->boolean('authorization_confirmed')
+        ) {
+            return response()->json([
+                'message' => 'Authorization confirmation is required before dispatch.',
+                'errors' => [
+                    'authorization_confirmed' => [
+                        'Please confirm you are the owner or authorized user of the vehicle or property.',
+                    ],
+                ],
+            ], 422);
+        }
 
         $customer = null;
         if ($token = $request->bearerToken()) {
@@ -68,6 +104,9 @@ class LeadController extends Controller
             'ip_address'     => $request->ip(),
             'user_agent'     => $request->userAgent(),
             'source'         => $request->header('Referer', 'direct'),
+            'authorization_confirmed' => $request->boolean('authorization_confirmed'),
+            'authorization_confirmed_at' => $request->boolean('authorization_confirmed') ? now() : null,
+            'authorization_disclaimer_version' => $validated['authorization_disclaimer_version'] ?? 'customer_authorization_v1',
         ]);
 
         if (!empty($validated['payment_intent_id'])) {
@@ -418,7 +457,11 @@ class LeadController extends Controller
             default => [],
         };
 
-        $assignment->update(array_merge(['status' => $targetStatus], $timestamps));
+        $assignment->update(array_merge(
+            ['status' => $targetStatus],
+            $timestamps,
+            $this->verificationPayload($request),
+        ));
 
         broadcast(new DispatchStatusChanged($lead, $company, $targetStatus));
 
@@ -426,5 +469,47 @@ class LeadController extends Controller
             'success' => true,
             'assignment_status' => $assignment->status,
         ]);
+    }
+
+    private function verificationPayload(Request $request): array
+    {
+        if (!$request->hasAny([
+            'verification_checklist',
+            'id_checked',
+            'ownership_checked',
+            'authorization_checked',
+            'verification_notes',
+        ])) {
+            return [];
+        }
+
+        $validated = $request->validate([
+            'verification_checklist' => ['nullable', 'array'],
+            'verification_checklist.id_checked' => ['nullable', 'boolean'],
+            'verification_checklist.ownership_checked' => ['nullable', 'boolean'],
+            'verification_checklist.authorization_checked' => ['nullable', 'boolean'],
+            'id_checked' => ['nullable', 'boolean'],
+            'ownership_checked' => ['nullable', 'boolean'],
+            'authorization_checked' => ['nullable', 'boolean'],
+            'verification_notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $checklist = $validated['verification_checklist'] ?? [];
+        foreach (['id_checked', 'ownership_checked', 'authorization_checked'] as $key) {
+            if ($request->has($key)) {
+                $checklist[$key] = $request->boolean($key);
+            }
+        }
+
+        $payload = [
+            'verification_checklist' => $checklist,
+            'verification_checked_at' => now(),
+        ];
+
+        if (array_key_exists('verification_notes', $validated)) {
+            $payload['verification_notes'] = $validated['verification_notes'];
+        }
+
+        return $payload;
     }
 }

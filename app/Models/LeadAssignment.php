@@ -12,6 +12,7 @@ class LeadAssignment extends Model
         'lead_id', 'company_id', 'status', 'lead_cost', 'stripe_charge_id', 'responded_at',
         'accepted_at', 'en_route_at', 'arrived_at', 'completed_at',
         'provider_latitude', 'provider_longitude', 'last_location_at',
+        'verification_checklist', 'verification_checked_at', 'verification_notes',
     ];
 
     protected $appends = [
@@ -25,6 +26,8 @@ class LeadAssignment extends Model
         'arrived_at' => 'datetime',
         'completed_at' => 'datetime',
         'last_location_at' => 'datetime',
+        'verification_checklist' => 'array',
+        'verification_checked_at' => 'datetime',
         'lead_cost' => 'decimal:2',
         'provider_latitude' => 'decimal:7',
         'provider_longitude' => 'decimal:7',
