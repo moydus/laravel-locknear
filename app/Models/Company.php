@@ -82,6 +82,11 @@ class Company extends Model
         return $this->hasMany(Review::class);
     }
 
+    public function media(): HasMany
+    {
+        return $this->hasMany(CompanyMedia::class);
+    }
+
     public function sources(): HasMany
     {
         return $this->hasMany(CompanySource::class);

@@ -82,6 +82,10 @@ class DispatchController extends Controller
             return response()->view('dispatch.expired', [], 410);
         }
 
+        if ($leadToken->lead?->status !== 'completed') {
+            return response()->view('dispatch.expired', [], 410);
+        }
+
         return response()->view('dispatch.review', [
             'token' => $token,
             'lead' => $leadToken->lead,
@@ -100,6 +104,10 @@ class DispatchController extends Controller
             return response()->view('dispatch.expired', [], 410);
         }
 
+        if ($leadToken->lead?->status !== 'completed') {
+            return response()->view('dispatch.expired', [], 410);
+        }
+
         $validated = $request->validate([
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'comment' => ['nullable', 'string', 'max:500'],
@@ -108,20 +116,13 @@ class DispatchController extends Controller
         \App\Models\Review::create([
             'lead_id'       => $leadToken->lead_id,
             'company_id'    => $leadToken->company_id,
+            'reviewer_name' => $leadToken->lead?->customer_name ?: 'LockNear customer',
+            'reviewer_email'=> $leadToken->lead?->email,
             'rating'        => $validated['rating'],
             'body'          => $validated['comment'] ?? null,
             'is_verified'   => true,
             'is_published'  => true,
         ]);
-
-        $company = $leadToken->company;
-        $avg = \App\Models\Review::where('company_id', $company->id)
-            ->where('is_published', true)
-            ->avg('rating');
-        $count = \App\Models\Review::where('company_id', $company->id)
-            ->where('is_published', true)
-            ->count();
-        $company->update(['rating' => round($avg, 2), 'review_count' => $count]);
 
         $leadToken->markUsed();
 

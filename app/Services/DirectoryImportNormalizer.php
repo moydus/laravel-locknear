@@ -24,6 +24,10 @@ class DirectoryImportNormalizer
             'longitude' => $payload['longitude'] ?? $payload['lng'] ?? null,
             'rating' => $payload['rating'] ?? null,
             'review_count' => $payload['review_count'] ?? $payload['reviews_count'] ?? null,
+            'photos' => $payload['photos'] ?? $payload['images'] ?? null,
+            'photo_count' => $payload['photo_count'] ?? $payload['photos_count'] ?? null,
+            'opening_hours' => $payload['opening_hours'] ?? $payload['hours'] ?? null,
+            'attributes' => $payload['attributes'] ?? null,
             'external_url' => $payload['external_url'] ?? $payload['url'] ?? null,
             'raw' => $payload,
         ];

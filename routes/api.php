@@ -4,10 +4,12 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BusinessGoogleAuthController;
 use App\Http\Controllers\Api\ClaimController;
 use App\Http\Controllers\Api\CompanyController;
+use App\Http\Controllers\Api\CompanyMediaController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\CustomerAuthController;
 use App\Http\Controllers\Api\CustomerGoogleAuthController;
+use App\Http\Controllers\Api\CustomerReviewController;
 use App\Http\Controllers\Api\DispatchController;
 use App\Http\Controllers\Api\EmailVerificationController;
 use App\Http\Controllers\Api\LeadController;
@@ -63,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customer/me', [CustomerAuthController::class, 'me']);
     Route::post('/customer/logout', [CustomerAuthController::class, 'logout']);
     Route::get('/customer/leads', [CustomerAuthController::class, 'leads']);
+    Route::post('/customer/leads/{lead}/review', [CustomerReviewController::class, 'store']);
 });
 
 // Public API routes (Astro site uses these — X-API-Key required)
@@ -146,6 +149,7 @@ Route::get('/companies', [CompanyController::class, 'index']);
 Route::get('/companies/{company}', [CompanyController::class, 'show']);
 Route::get('/companies/{company}/reviews', [ReviewController::class, 'index']);
 Route::get('/companies/{company}/reviews/summary', [ReviewController::class, 'summary']);
+Route::get('/companies/{company}/media', [CompanyMediaController::class, 'publicIndex']);
 
 // Stripe webhook — CSRF dışında tutulmalı, raw body gerektirir
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
@@ -169,6 +173,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/company/me', [CompanyController::class, 'update']);
     Route::post('/company/me/heartbeat', [CompanyController::class, 'heartbeat']);
     Route::post('/company/me/logo', [CompanyController::class, 'uploadLogo']);
+    Route::get('/company/me/media', [CompanyMediaController::class, 'index']);
+    Route::post('/company/me/media', [CompanyMediaController::class, 'store']);
+    Route::delete('/company/me/media/{media}', [CompanyMediaController::class, 'destroy']);
     Route::delete('/company/me', [CompanyController::class, 'destroy']);
 
     // Provider operations

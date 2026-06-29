@@ -69,7 +69,13 @@ class DirectoryImportPipeline
                     'rating' => $data['rating'],
                     'review_count' => $data['review_count'],
                     'last_synced_at' => now(),
-                    'metadata' => ['raw' => $data['raw']],
+                    'metadata' => array_filter([
+                        'photos' => $data['photos'],
+                        'photo_count' => $data['photo_count'],
+                        'opening_hours' => $data['opening_hours'],
+                        'attributes' => $data['attributes'],
+                        'raw' => $data['raw'],
+                    ], fn ($value) => $value !== null && $value !== []),
                 ],
             );
 
