@@ -54,6 +54,10 @@ class CompanyController extends Controller
             ->orderByDesc('review_count')
             ->paginate(20);
 
+        $companies->getCollection()->transform(
+            fn (Company $company) => $this->serializePublicCompany($company),
+        );
+
         return response()->json($companies);
     }
 
@@ -65,8 +69,9 @@ class CompanyController extends Controller
         }
 
         return response()->json(
-            $company->load('services:id,company_id,service_type,price,is_active')
-                    ->makeHidden(['stripe_customer_id', 'claim_token', 'user_id'])
+            $this->serializePublicCompany(
+                $company->load('services:id,company_id,service_type,price,is_active'),
+            ),
         );
     }
 
@@ -245,7 +250,25 @@ class CompanyController extends Controller
             ->query(fn ($query) => $query->with('services:id,company_id,service_type,is_active'))
             ->paginate(20);
 
+        $results->getCollection()->transform(
+            fn (Company $company) => $this->serializePublicCompany($company),
+        );
+
         return response()->json($results);
+    }
+
+    private function serializePublicCompany(Company $company): array
+    {
+        $data = $company->makeHidden(['stripe_customer_id', 'claim_token', 'user_id', 'email'])->toArray();
+        unset($data['phone'], $data['website'], $data['address'], $data['email']);
+
+        if (!$company->is_claimed) {
+            $data['latitude'] = null;
+            $data['longitude'] = null;
+            $data['zip'] = null;
+        }
+
+        return $data;
     }
 
     private function companyWithPresence(Company $company): array

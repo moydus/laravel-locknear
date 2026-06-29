@@ -151,6 +151,10 @@ class GhostOutreachService
                 ->orderBy('distance_km');
         }
 
+        if ($lead->preferred_company_id) {
+            $query->orderByRaw('CASE WHEN companies.id = ? THEN 0 ELSE 1 END', [$lead->preferred_company_id]);
+        }
+
         return $query
             ->orderByDesc('rating')
             ->orderByDesc('review_count')

@@ -35,8 +35,19 @@ class DispatchService
 
         $sent = 0;
         $acceptMinutes = config('locknear.dispatch.accept_token_minutes', 30);
+        $preferredId = $lead->preferred_company_id;
 
-        foreach ($companies->take($maxRecipients) as $company) {
+        $ordered = $companies;
+        if ($preferredId) {
+            $preferred = $companies->firstWhere('id', $preferredId);
+            if ($preferred) {
+                $ordered = collect([$preferred])->merge(
+                    $companies->reject(fn (Company $company) => $company->id === $preferredId),
+                );
+            }
+        }
+
+        foreach ($ordered->take($maxRecipients) as $company) {
             if (!$company->phone) continue;
 
             $acceptToken = LeadToken::generate($lead->id, $company->id, 'accept', $acceptMinutes);
@@ -201,6 +212,10 @@ class DispatchService
              ->orderByDesc('rating');
         } else {
             $query->orderByDesc('is_claimed')->orderByDesc('rating');
+        }
+
+        if ($lead->preferred_company_id) {
+            $query->orderByRaw('CASE WHEN companies.id = ? THEN 0 ELSE 1 END', [$lead->preferred_company_id]);
         }
 
         return $query->limit(10)->get();

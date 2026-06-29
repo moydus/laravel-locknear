@@ -9,6 +9,7 @@ use App\Enums\BookingState;
 use App\Exceptions\LeadBillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
 use App\Models\PaymentIntent;
@@ -65,6 +66,8 @@ class LeadController extends Controller
             'vehicle_year'      => ['nullable', 'string', 'max:10'],
             'vehicle_color'     => ['nullable', 'string', 'max:100'],
             'license_plate'     => ['nullable', 'string', 'max:32'],
+            'preferred_company_slug' => ['nullable', 'string', 'max:255'],
+            'provider_id'       => ['nullable', 'string', 'max:255'],
         ]);
 
         if (
@@ -94,9 +97,16 @@ class LeadController extends Controller
             $validated['place_source'] = 'google';
         }
 
+        $preferredCompanyId = $this->resolvePreferredCompanyId(
+            $validated['preferred_company_slug'] ?? null,
+            $validated['provider_id'] ?? null,
+        );
+        unset($validated['preferred_company_slug'], $validated['provider_id']);
+
         $lead = Lead::create([
             ...$validated,
             'user_id'        => $customer?->id,
+            'preferred_company_id' => $preferredCompanyId,
             'customer_name'  => $validated['customer_name'] ?? $customer?->name,
             'email'          => $validated['email'] ?? $customer?->email,
             'status'         => 'new',
@@ -511,5 +521,21 @@ class LeadController extends Controller
         }
 
         return $payload;
+    }
+
+    private function resolvePreferredCompanyId(?string $slug, ?string $providerId): ?int
+    {
+        $candidate = $slug ?: $providerId;
+        if (!$candidate) {
+            return null;
+        }
+
+        $query = Company::query()->where('is_active', true);
+
+        if (ctype_digit($candidate)) {
+            return $query->whereKey((int) $candidate)->value('id');
+        }
+
+        return $query->where('slug', $candidate)->value('id');
     }
 }
