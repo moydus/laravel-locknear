@@ -6,7 +6,9 @@ use App\Events\NewDispatchRequest;
 use App\Mail\CustomerLeadMail;
 use App\Models\Company;
 use App\Models\Lead;
+use App\Models\LeadAssignment;
 use App\Models\LeadToken;
+use App\Support\LeadPricing;
 use App\Support\LockNearUrls;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -34,6 +36,7 @@ class DispatchService
         }
 
         $sent = 0;
+        $notified = 0;
         $acceptMinutes = config('locknear.dispatch.accept_token_minutes', 30);
         $preferredId = $lead->preferred_company_id;
 
@@ -48,7 +51,19 @@ class DispatchService
         }
 
         foreach ($ordered->take($maxRecipients) as $company) {
-            if (!$company->phone) continue;
+            $assignment = LeadAssignment::firstOrCreate(
+                ['lead_id' => $lead->id, 'company_id' => $company->id],
+                [
+                    'status' => 'pending',
+                    'lead_cost' => LeadPricing::forService($lead->service_type),
+                ],
+            );
+
+            if ($assignment->status !== 'pending') {
+                continue;
+            }
+
+            $notified++;
 
             $acceptToken = LeadToken::generate($lead->id, $company->id, 'accept', $acceptMinutes);
             $rejectToken = LeadToken::generate($lead->id, $company->id, 'reject', $acceptMinutes);
@@ -58,6 +73,18 @@ class DispatchService
             $acceptUrl = LockNearUrls::dispatchAccept($acceptToken->token);
             $rejectUrl = LockNearUrls::dispatchReject($rejectToken->token);
             $providerLeadUrl = LockNearUrls::providerLead($lead->id);
+
+            broadcast(new NewDispatchRequest(
+                $lead,
+                $company,
+                $acceptToken->token,
+                $rejectToken->token,
+                $acceptToken->expires_at,
+            ));
+
+            if (!$company->phone) {
+                continue;
+            }
 
             if ($company->is_claimed) {
                 $body = "🔑 NEW JOB — LockNear\n"
@@ -75,20 +102,12 @@ class DispatchService
                     . "Takes 2 minutes. No credit card needed.";
             }
 
-            broadcast(new NewDispatchRequest(
-                $lead,
-                $company,
-                $acceptToken->token,
-                $rejectToken->token,
-                $acceptToken->expires_at,
-            ));
-
             if ($this->sendSms($company->phone, $body)) {
                 $sent++;
             }
         }
 
-        if ($sent === 0) {
+        if ($notified === 0) {
             return app(GhostOutreachService::class)->inviteForLead(
                 $lead,
                 (int) config('locknear.outreach.ghost_dispatch_limit', 20),

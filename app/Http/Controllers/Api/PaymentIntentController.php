@@ -138,6 +138,25 @@ class PaymentIntentController extends Controller
         return response()->json(['data' => $intent]);
     }
 
+    public function cancelPublic(Request $request, PaymentIntent $paymentIntent): JsonResponse
+    {
+        if (!in_array($paymentIntent->status, ['requires_capture', 'requires_confirmation', 'requires_payment_method'], true)) {
+            return response()->json(['error' => 'Payment intent cannot be cancelled.'], 422);
+        }
+
+        try {
+            $intent = $this->payments->cancel([
+                'payment_intent_id' => $paymentIntent->id,
+                'cancellation_reason' => $request->input('cancellation_reason', 'abandoned'),
+                'idempotency_key' => $request->header('Idempotency-Key'),
+            ]);
+        } catch (RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['data' => $intent]);
+    }
+
     public function refund(Request $request, PaymentIntent $paymentIntent): JsonResponse
     {
         $this->authorizePaymentAccess($request, $paymentIntent);

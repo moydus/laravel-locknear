@@ -38,6 +38,6 @@ class LockNearUrls
 
     public static function providerLead(int $leadId): string
     {
-        return self::providerApp() . '/leads/' . $leadId;
+        return self::providerApp() . '/jobs?lead=' . $leadId;
     }
 }

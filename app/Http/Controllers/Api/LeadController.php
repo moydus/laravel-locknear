@@ -413,8 +413,8 @@ class LeadController extends Controller
             return response()->json(['error' => 'Assignment not found'], 404);
         }
 
-        if (!in_array($assignment->status, ['accepted', 'en_route', 'arrived'], true)) {
-            return response()->json(['error' => 'This job cannot be marked unable to verify from its current status.'], 409);
+        if ($assignment->status !== 'arrived') {
+            return response()->json(['error' => 'Mark arrival before reporting a verification issue.'], 409);
         }
 
         $validated = $request->validate([

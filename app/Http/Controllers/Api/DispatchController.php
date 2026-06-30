@@ -6,7 +6,9 @@ use App\Events\DispatchStatusChanged;
 use App\Exceptions\LeadBillingException;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\LeadAssignment;
 use App\Models\LeadToken;
+use App\Support\LeadPricing;
 use App\Services\LeadAcceptanceService;
 use Illuminate\Http\Request;
 
@@ -64,6 +66,26 @@ class DispatchController extends Controller
 
         if (!$leadToken || !$leadToken->isValid()) {
             return response()->view('dispatch.expired', [], 410);
+        }
+
+        $lead = $leadToken->lead;
+        $company = $leadToken->company;
+
+        if ($lead && $company) {
+            $assignment = LeadAssignment::firstOrCreate(
+                ['lead_id' => $lead->id, 'company_id' => $company->id],
+                [
+                    'status' => 'pending',
+                    'lead_cost' => LeadPricing::forService($lead->service_type),
+                ],
+            );
+
+            if ($assignment->status === 'pending') {
+                $assignment->update([
+                    'status' => 'rejected',
+                    'responded_at' => now(),
+                ]);
+            }
         }
 
         $leadToken->markUsed();
