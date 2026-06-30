@@ -230,6 +230,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/leads/{lead}/reject', [LeadController::class, 'reject']);
     Route::post('/leads/{lead}/en-route', [LeadController::class, 'markEnRoute']);
     Route::post('/leads/{lead}/arrived', [LeadController::class, 'markArrived']);
+    Route::post('/leads/{lead}/unable-to-verify', [LeadController::class, 'markUnableToVerify']);
     Route::post('/leads/{lead}/complete', [LeadController::class, 'complete']);
     Route::post('/leads/{lead}/location', [LeadController::class, 'updateLocation']);
 
@@ -242,6 +243,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs/{lead}/reject', [LeadController::class, 'reject']);
     Route::post('/jobs/{lead}/en-route', [LeadController::class, 'markEnRoute']);
     Route::post('/jobs/{lead}/arrived', [LeadController::class, 'markArrived']);
+    Route::post('/jobs/{lead}/unable-to-verify', [LeadController::class, 'markUnableToVerify']);
     Route::post('/jobs/{lead}/complete', [LeadController::class, 'complete']);
     Route::post('/jobs/{lead}/location', [LeadController::class, 'updateLocation']);
 });

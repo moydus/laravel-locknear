@@ -13,6 +13,7 @@ class TrackPayload
 
         return [
             'status' => $lead->status,
+            'work_order_number' => $lead->work_order_number,
             'service' => $lead->service_type,
             'zip' => $lead->zip,
             'city' => $lead->city,
@@ -35,7 +36,7 @@ class TrackPayload
         }
 
         return $lead->assignments()
-            ->whereIn('status', ['en_route', 'arrived', 'completed'])
+            ->whereIn('status', ['en_route', 'arrived', 'completed', 'unable_to_verify'])
             ->latest('updated_at')
             ->with('company')
             ->first();
@@ -53,6 +54,9 @@ class TrackPayload
             'lng' => $assignment->provider_longitude ?? $assignment->company?->longitude,
             'last_location_at' => optional($assignment->last_location_at)?->toIso8601String(),
             'eta' => DispatchEta::estimateMinutes($lead, $assignment),
+            'service_refusal_reason' => $assignment->service_refusal_reason,
+            'dispatch_fee_eligible' => $assignment->dispatch_fee_eligible,
+            'dispatch_fee_capture_amount_cents' => $assignment->dispatch_fee_capture_amount_cents,
         ];
     }
 }

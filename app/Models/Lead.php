@@ -14,6 +14,8 @@ class Lead extends Model
         'customer_token', 'latitude', 'longitude', 'customer_name', 'city', 'state',
         'google_place_id', 'formatted_address', 'address_components', 'place_source',
         'authorization_confirmed', 'authorization_confirmed_at', 'authorization_disclaimer_version',
+        'work_order_number', 'dispatch_fee_cents', 'dispatch_fee_currency',
+        'dispatch_fee_policy_version', 'dispatch_fee_acknowledged', 'dispatch_fee_acknowledged_at',
         'vehicle_make', 'vehicle_model', 'vehicle_year', 'vehicle_color', 'license_plate',
     ];
 
@@ -23,6 +25,9 @@ class Lead extends Model
         'address_components' => 'array',
         'authorization_confirmed' => 'boolean',
         'authorization_confirmed_at' => 'datetime',
+        'dispatch_fee_cents' => 'integer',
+        'dispatch_fee_acknowledged' => 'boolean',
+        'dispatch_fee_acknowledged_at' => 'datetime',
     ];
 
     public function assignments(): HasMany

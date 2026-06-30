@@ -14,6 +14,7 @@ use App\Models\Lead;
 use App\Models\LeadAssignment;
 use App\Models\PaymentIntent;
 use App\Services\DispatchService;
+use App\Services\DomainEventRecorder;
 use App\Services\LeadAcceptanceService;
 use App\Services\PaymentEngine;
 use App\Support\LeadPricing;
@@ -61,6 +62,10 @@ class LeadController extends Controller
             'payment_intent_id' => ['nullable', 'integer', 'exists:payment_intents,id'],
             'authorization_confirmed' => ['nullable', 'boolean'],
             'authorization_disclaimer_version' => ['nullable', 'string', 'max:64'],
+            'dispatch_fee_cents' => ['nullable', 'integer', 'min:0', 'max:25000'],
+            'dispatch_fee_currency' => ['nullable', 'string', 'size:3'],
+            'dispatch_fee_policy_version' => ['nullable', 'string', 'max:64'],
+            'dispatch_fee_acknowledged' => ['nullable', 'boolean'],
             'vehicle_make'      => ['nullable', 'string', 'max:100'],
             'vehicle_model'     => ['nullable', 'string', 'max:100'],
             'vehicle_year'      => ['nullable', 'string', 'max:10'],
@@ -79,6 +84,21 @@ class LeadController extends Controller
                 'errors' => [
                     'authorization_confirmed' => [
                         'Please confirm you are the owner or authorized user of the vehicle or property.',
+                    ],
+                ],
+            ], 422);
+        }
+
+        if (
+            in_array($validated['service_type'], self::AUTHORIZATION_REQUIRED_SERVICES, true)
+            && (int) ($validated['dispatch_fee_cents'] ?? 3900) > 0
+            && !$request->boolean('dispatch_fee_acknowledged')
+        ) {
+            return response()->json([
+                'message' => 'Dispatch fee policy acknowledgement is required before dispatch.',
+                'errors' => [
+                    'dispatch_fee_acknowledged' => [
+                        'Please acknowledge that a dispatch fee may apply if ownership or authorization cannot be verified after arrival.',
                     ],
                 ],
             ], 422);
@@ -107,6 +127,7 @@ class LeadController extends Controller
             ...$validated,
             'user_id'        => $customer?->id,
             'preferred_company_id' => $preferredCompanyId,
+            'work_order_number' => $this->nextWorkOrderNumber(),
             'customer_name'  => $validated['customer_name'] ?? $customer?->name,
             'email'          => $validated['email'] ?? $customer?->email,
             'status'         => 'new',
@@ -117,6 +138,21 @@ class LeadController extends Controller
             'authorization_confirmed' => $request->boolean('authorization_confirmed'),
             'authorization_confirmed_at' => $request->boolean('authorization_confirmed') ? now() : null,
             'authorization_disclaimer_version' => $validated['authorization_disclaimer_version'] ?? 'customer_authorization_v1',
+            'dispatch_fee_cents' => (int) ($validated['dispatch_fee_cents'] ?? 3900),
+            'dispatch_fee_currency' => strtolower($validated['dispatch_fee_currency'] ?? 'usd'),
+            'dispatch_fee_policy_version' => $validated['dispatch_fee_policy_version'] ?? 'dispatch_fee_v1',
+            'dispatch_fee_acknowledged' => $request->boolean('dispatch_fee_acknowledged'),
+            'dispatch_fee_acknowledged_at' => $request->boolean('dispatch_fee_acknowledged') ? now() : null,
+        ]);
+
+        app(DomainEventRecorder::class)->record('WorkOrderCreated', $lead, [
+            'lead_id' => $lead->id,
+            'work_order_number' => $lead->work_order_number,
+            'service_type' => $lead->service_type,
+            'preferred_company_id' => $lead->preferred_company_id,
+            'dispatch_fee_cents' => $lead->dispatch_fee_cents,
+            'dispatch_fee_currency' => $lead->dispatch_fee_currency,
+            'dispatch_fee_policy_version' => $lead->dispatch_fee_policy_version,
         ]);
 
         if (!empty($validated['payment_intent_id'])) {
@@ -360,6 +396,68 @@ class LeadController extends Controller
         return $this->updateAssignmentStatus($request, $lead, 'arrived');
     }
 
+    public function markUnableToVerify(Request $request, Lead $lead): JsonResponse
+    {
+        $company = $request->user()->company;
+        if (!$company) {
+            return response()->json(['error' => 'No company'], 403);
+        }
+
+        $assignment = $company->leads()
+            ->where('lead_id', $lead->id)
+            ->first();
+
+        if (!$assignment) {
+            return response()->json(['error' => 'Assignment not found'], 404);
+        }
+
+        if (!in_array($assignment->status, ['accepted', 'en_route', 'arrived'], true)) {
+            return response()->json(['error' => 'This job cannot be marked unable to verify from its current status.'], 409);
+        }
+
+        $validated = $request->validate([
+            'service_refusal_reason' => ['nullable', 'string', 'in:unable_to_verify_ownership,no_photo_id,no_registration,no_authorization,customer_no_show,safety_concern,other'],
+        ]);
+
+        $payload = array_merge(
+            [
+                'status' => 'unable_to_verify',
+                'service_refusal_reason' => $validated['service_refusal_reason'] ?? 'unable_to_verify_ownership',
+                'service_refused_at' => now(),
+                'dispatch_fee_eligible' => (int) ($lead->dispatch_fee_cents ?? 0) > 0,
+                'dispatch_fee_capture_status' => (int) ($lead->dispatch_fee_cents ?? 0) > 0 ? 'eligible' : null,
+                'dispatch_fee_capture_amount_cents' => (int) ($lead->dispatch_fee_cents ?? 0) ?: null,
+            ],
+            $this->verificationPayload($request),
+        );
+
+        $assignment->update($payload);
+
+        $lead->update(['status' => 'verification_failed']);
+
+        app(DomainEventRecorder::class)->record('ServiceVerificationFailed', $lead, [
+            'lead_id' => $lead->id,
+            'work_order_number' => $lead->work_order_number,
+            'company_id' => $company->id,
+            'assignment_id' => $assignment->id,
+            'service_refusal_reason' => $payload['service_refusal_reason'],
+            'dispatch_fee_eligible' => $payload['dispatch_fee_eligible'],
+            'dispatch_fee_capture_amount_cents' => $payload['dispatch_fee_capture_amount_cents'],
+            'verification_checklist' => $payload['verification_checklist'] ?? $assignment->verification_checklist,
+        ], ['company_id' => $company->id]);
+
+        broadcast(new DispatchStatusChanged($lead, $company, 'unable_to_verify'));
+
+        return response()->json([
+            'success' => true,
+            'lead_status' => 'verification_failed',
+            'assignment_status' => 'unable_to_verify',
+            'dispatch_fee_eligible' => $payload['dispatch_fee_eligible'],
+            'dispatch_fee_capture_status' => $payload['dispatch_fee_capture_status'],
+            'dispatch_fee_capture_amount_cents' => $payload['dispatch_fee_capture_amount_cents'],
+        ]);
+    }
+
     public function complete(Request $request, Lead $lead): JsonResponse
     {
         $company = $request->user()->company;
@@ -537,5 +635,14 @@ class LeadController extends Controller
         }
 
         return $query->where('slug', $candidate)->value('id');
+    }
+
+    private function nextWorkOrderNumber(): string
+    {
+        do {
+            $number = 'WO-' . strtoupper(Str::random(8));
+        } while (Lead::where('work_order_number', $number)->exists());
+
+        return $number;
     }
 }
