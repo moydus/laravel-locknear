@@ -72,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['throttle:5,1', 'api.key'])->group(function () {
     Route::post('/leads', [LeadController::class, 'store']);
     Route::post('/payment-intents', [PaymentIntentController::class, 'store']);
+    Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorizePublic']);
     Route::post('/payment-intents/{paymentIntent}/cancel', [PaymentIntentController::class, 'cancelPublic']);
     Route::post('/contact', [ContactController::class, 'store']);
 });
