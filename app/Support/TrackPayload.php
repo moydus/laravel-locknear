@@ -20,6 +20,8 @@ class TrackPayload
             'state' => $lead->state,
             'customer_lat' => $lead->latitude,
             'customer_lng' => $lead->longitude,
+            'dispatch_fee_cents' => (int) ($lead->dispatch_fee_cents ?? 0),
+            'dispatch_fee_acknowledged' => (bool) $lead->dispatch_fee_acknowledged,
             'assigned' => $assignment ? self::assignedBlock($lead, $assignment) : null,
         ];
     }
@@ -55,7 +57,9 @@ class TrackPayload
             'last_location_at' => optional($assignment->last_location_at)?->toIso8601String(),
             'eta' => DispatchEta::estimateMinutes($lead, $assignment),
             'service_refusal_reason' => $assignment->service_refusal_reason,
+            'service_refused_at' => optional($assignment->service_refused_at)?->toIso8601String(),
             'dispatch_fee_eligible' => $assignment->dispatch_fee_eligible,
+            'dispatch_fee_capture_status' => $assignment->dispatch_fee_capture_status,
             'dispatch_fee_capture_amount_cents' => $assignment->dispatch_fee_capture_amount_cents,
         ];
     }

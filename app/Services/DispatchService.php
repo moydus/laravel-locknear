@@ -164,6 +164,38 @@ class DispatchService
         $this->notifyCustomer($lead, $smsBody, $mail);
     }
 
+    public function sendCustomerVerificationFailed(Lead $lead, Company $company, array $context = []): void
+    {
+        if (!$lead->customer_token) {
+            return;
+        }
+
+        $trackUrl = LockNearUrls::customerTrack($lead);
+        $feeCents = (int) ($context['dispatch_fee_capture_amount_cents'] ?? $lead->dispatch_fee_cents ?? 0);
+        $feeCaptured = ($context['dispatch_fee_capture_status'] ?? null) === 'captured' && $feeCents > 0;
+        $feeLine = $feeCaptured
+            ? sprintf("\n\nA dispatch fee of $%s was charged for the technician's trip.", number_format($feeCents / 100, 2))
+            : "\n\nAny remaining card hold has been released.";
+
+        $smsBody = "LockNear: {$company->name} could not verify ownership or authorization for your request."
+            . $feeLine
+            . "\n\nDetails: {$trackUrl}\n— LockNear";
+
+        $mail = new CustomerLeadMail(
+            subjectLine: 'Service could not be verified — LockNear',
+            headline: 'Verification required before service',
+            body: "{$company->name} arrived but could not verify ownership or authorization, so the job was not started."
+                . ($feeCaptured
+                    ? sprintf(' A dispatch fee of $%s was charged for the trip.', number_format($feeCents / 100, 2))
+                    : ' Any remaining card hold has been released.')
+                . "\n\nOpen your track page for full details.",
+            actionUrl: $trackUrl,
+            actionLabel: 'View request details',
+        );
+
+        $this->notifyCustomer($lead, $smsBody, $mail);
+    }
+
     private function notifyCustomer(Lead $lead, string $smsBody, CustomerLeadMail $mail): void
     {
         $smsSent = false;

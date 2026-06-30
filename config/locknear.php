@@ -45,6 +45,7 @@ return [
     'default_commission_rate' => (float) env('LOCKNEAR_COMMISSION_RATE', 0.20),
     'surge_enabled' => env('LOCKNEAR_SURGE_ENABLED', false),
     'provider' => env('LOCKNEAR_PRICING_PROVIDER', 'rule_based'),
+    'default_dispatch_fee_cents' => (int) env('LOCKNEAR_DISPATCH_FEE_CENTS', 3900),
   ],
 
   'features' => [

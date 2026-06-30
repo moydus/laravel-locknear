@@ -13,6 +13,7 @@ use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
 use App\Models\PaymentIntent;
+use App\Services\DispatchFeeService;
 use App\Services\DispatchService;
 use App\Services\DomainEventRecorder;
 use App\Services\LeadAcceptanceService;
@@ -91,7 +92,7 @@ class LeadController extends Controller
 
         if (
             in_array($validated['service_type'], self::AUTHORIZATION_REQUIRED_SERVICES, true)
-            && (int) ($validated['dispatch_fee_cents'] ?? 3900) > 0
+            && (int) ($validated['dispatch_fee_cents'] ?? config('locknear.pricing.default_dispatch_fee_cents', 3900)) > 0
             && !$request->boolean('dispatch_fee_acknowledged')
         ) {
             return response()->json([
@@ -138,7 +139,7 @@ class LeadController extends Controller
             'authorization_confirmed' => $request->boolean('authorization_confirmed'),
             'authorization_confirmed_at' => $request->boolean('authorization_confirmed') ? now() : null,
             'authorization_disclaimer_version' => $validated['authorization_disclaimer_version'] ?? 'customer_authorization_v1',
-            'dispatch_fee_cents' => (int) ($validated['dispatch_fee_cents'] ?? 3900),
+            'dispatch_fee_cents' => (int) ($validated['dispatch_fee_cents'] ?? config('locknear.pricing.default_dispatch_fee_cents', 3900)),
             'dispatch_fee_currency' => strtolower($validated['dispatch_fee_currency'] ?? 'usd'),
             'dispatch_fee_policy_version' => $validated['dispatch_fee_policy_version'] ?? 'dispatch_fee_v1',
             'dispatch_fee_acknowledged' => $request->boolean('dispatch_fee_acknowledged'),
@@ -213,6 +214,7 @@ class LeadController extends Controller
         return response()->json([
             'success'        => true,
             'lead_id'        => $lead->id,
+            'work_order_number' => $lead->work_order_number,
             'customer_token' => $lead->customer_token,
             'track_url'      => LockNearUrls::customerTrack($lead),
         ], 201);
@@ -419,14 +421,18 @@ class LeadController extends Controller
             'service_refusal_reason' => ['nullable', 'string', 'in:unable_to_verify_ownership,no_photo_id,no_registration,no_authorization,customer_no_show,safety_concern,other'],
         ]);
 
+        $feeCapture = app(DispatchFeeService::class)->captureForVerificationFailure($lead, $assignment);
+
         $payload = array_merge(
             [
                 'status' => 'unable_to_verify',
                 'service_refusal_reason' => $validated['service_refusal_reason'] ?? 'unable_to_verify_ownership',
                 'service_refused_at' => now(),
-                'dispatch_fee_eligible' => (int) ($lead->dispatch_fee_cents ?? 0) > 0,
-                'dispatch_fee_capture_status' => (int) ($lead->dispatch_fee_cents ?? 0) > 0 ? 'eligible' : null,
-                'dispatch_fee_capture_amount_cents' => (int) ($lead->dispatch_fee_cents ?? 0) ?: null,
+                'dispatch_fee_eligible' => (int) ($lead->dispatch_fee_cents ?? 0) > 0 && $lead->dispatch_fee_acknowledged,
+                'dispatch_fee_capture_status' => $feeCapture['dispatch_fee_capture_status']
+                    ?? ((int) ($lead->dispatch_fee_cents ?? 0) > 0 ? 'eligible' : null),
+                'dispatch_fee_capture_amount_cents' => $feeCapture['dispatch_fee_capture_amount_cents']
+                    ?? ((int) ($lead->dispatch_fee_cents ?? 0) ?: null),
             ],
             $this->verificationPayload($request),
         );
@@ -442,11 +448,16 @@ class LeadController extends Controller
             'assignment_id' => $assignment->id,
             'service_refusal_reason' => $payload['service_refusal_reason'],
             'dispatch_fee_eligible' => $payload['dispatch_fee_eligible'],
+            'dispatch_fee_capture_status' => $payload['dispatch_fee_capture_status'],
             'dispatch_fee_capture_amount_cents' => $payload['dispatch_fee_capture_amount_cents'],
             'verification_checklist' => $payload['verification_checklist'] ?? $assignment->verification_checklist,
         ], ['company_id' => $company->id]);
 
         broadcast(new DispatchStatusChanged($lead, $company, 'unable_to_verify'));
+
+        dispatch(function () use ($lead, $company, $payload) {
+            app(DispatchService::class)->sendCustomerVerificationFailed($lead->fresh(), $company, $payload);
+        })->afterResponse();
 
         return response()->json([
             'success' => true,
