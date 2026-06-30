@@ -130,6 +130,7 @@ class LeadController extends Controller
             'preferred_company_id' => $preferredCompanyId,
             'work_order_number' => $this->nextWorkOrderNumber(),
             'customer_name'  => $validated['customer_name'] ?? $customer?->name,
+            'phone'          => $validated['phone'] ?? null,
             'email'          => $validated['email'] ?? $customer?->email,
             'status'         => 'new',
             'customer_token' => Str::random(48),

@@ -215,10 +215,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/connect/account/onboarding', [StripeConnectController::class, 'onboarding']);
     Route::post('/connect/account/login', [StripeConnectController::class, 'login']);
 
-    // Payment operations for authorized dispatch
-    Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorize']);
+    // Payment operations for authorized dispatch (provider panel — capture/refund only;
+    // authorize/cancel are public Astro routes with X-API-Key above)
     Route::post('/payment-intents/{paymentIntent}/capture', [PaymentIntentController::class, 'capture']);
-    Route::post('/payment-intents/{paymentIntent}/cancel', [PaymentIntentController::class, 'cancel']);
     Route::post('/payment-intents/{paymentIntent}/refund', [PaymentIntentController::class, 'refund']);
 
     // Lead management for companies

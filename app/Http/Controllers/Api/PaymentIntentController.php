@@ -146,8 +146,8 @@ class PaymentIntentController extends Controller
                 'idempotency_key' => $request->header('Idempotency-Key'),
             ]);
             $paymentIntent->refresh();
-        } catch (RuntimeException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
         }
 
         if (in_array($paymentIntent->status, ['canceled', 'succeeded'], true)) {
@@ -164,8 +164,10 @@ class PaymentIntentController extends Controller
                 'cancellation_reason' => $request->input('cancellation_reason', 'abandoned'),
                 'idempotency_key' => $request->header('Idempotency-Key'),
             ]);
-        } catch (RuntimeException $e) {
-            return response()->json(['error' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json(['error' => 'Unable to cancel payment hold.'], 422);
         }
 
         return response()->json(['data' => $intent]);
