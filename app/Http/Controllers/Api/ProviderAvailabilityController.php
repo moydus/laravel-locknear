@@ -49,10 +49,10 @@ class ProviderAvailabilityController extends Controller
                 || (filled($company->city) && filled($company->zip));
 
             if (!$company->phone || !$hasLocation) {
-            return response()->json([
-                'message' => 'Complete your phone number and service area before going online.',
-            ], 422);
-        }
+                return response()->json([
+                    'message' => 'Complete your phone number and service area before going online.',
+                ], 422);
+            }
         }
 
         if (($validated['is_online'] ?? null) === true) {

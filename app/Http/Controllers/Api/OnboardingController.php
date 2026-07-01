@@ -51,11 +51,11 @@ class OnboardingController extends Controller
 
     $company->update([
       'phone' => $validated['phone'],
-      'address' => $validated['address'] ?? $validated['formatted_address'] ?? null,
+      'address' => $validated['address'] ?? $validated['formatted_address'] ?? trim("{$validated['city']}, {$validated['state']} {$validated['zip']}"),
       'city' => $validated['city'],
       'state' => $validated['state'],
       'zip' => $validated['zip'],
-      'formatted_address' => $validated['formatted_address'] ?? $validated['address'] ?? null,
+      'formatted_address' => $validated['formatted_address'] ?? $validated['address'] ?? trim("{$validated['city']}, {$validated['state']} {$validated['zip']}"),
       'google_place_id' => $validated['google_place_id'] ?? null,
       'place_source' => $validated['place_source'] ?? null,
       'place_verified_at' => isset($validated['google_place_id']) ? now() : null,
