@@ -63,13 +63,14 @@ class TrackPayload
 
         if ($liveNearby === 0) {
             $directoryCount = count(self::nearestDirectoryCompanies($lead));
+            $cityLabel = trim(($lead->city ?: 'your area') . ($lead->state ? ", {$lead->state}" : ''));
 
             return [
                 'phase' => 'no_live_providers',
-                'label' => 'No one online yet',
+                'label' => 'Matching your request',
                 'message' => $directoryCount > 0
-                    ? 'No locksmiths are online in your area right now. Grey pins show nearby listings we can notify.'
-                    : "No locksmiths are available in this area yet. We'll email you when coverage expands.",
+                    ? "No locksmiths are online in {$cityLabel} right now. We're notifying nearby listings and will text you when someone accepts."
+                    : "No locksmiths are available in {$cityLabel} yet. We'll email you when coverage expands.",
                 'live_providers_nearby' => 0,
                 'providers_contacted' => 0,
                 'directory_nearby' => $directoryCount,
@@ -178,8 +179,24 @@ class TrackPayload
         }
 
         return $query
-            ->limit($limit)
+            ->limit($limit * 3)
             ->get()
+            ->filter(function (Company $company) use ($lead) {
+                if (!$lead->latitude || !$lead->longitude) {
+                    return true;
+                }
+
+                if (!self::usableCoordinate($company->latitude) || !self::usableCoordinate($company->longitude)) {
+                    return false;
+                }
+
+                $distanceKm = isset($company->distance_km)
+                    ? (float) $company->distance_km
+                    : null;
+
+                return $distanceKm === null || $distanceKm <= 120;
+            })
+            ->take($limit)
             ->map(fn (Company $company) => [
                 'name' => $company->name,
                 'lat' => (float) $company->latitude,
