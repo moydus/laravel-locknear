@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
+use App\Support\DispatchMatching;
 
 class TrackPayload
 {
@@ -47,7 +48,7 @@ class TrackPayload
 
         $lead->loadMissing('assignments');
         $pending = $lead->assignments->where('status', 'pending')->count();
-        $liveNearby = self::countLiveProviders($lead);
+        $liveNearby = DispatchMatching::countForLead($lead);
         $directoryNearby = self::nearestDirectoryCompanies($lead, 1);
 
         if ($pending > 0) {
@@ -130,39 +131,7 @@ class TrackPayload
 
     public static function countLiveProviders(Lead $lead): int
     {
-        $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));
-
-        $query = Company::where('is_active', true)
-            ->where('is_online', true)
-            ->where('last_seen_at', '>=', $awayCutoff)
-            ->whereHas('services', fn ($q) =>
-                $q->where('service_type', $lead->service_type)->where('is_active', true)
-            )
-            ->where(function ($q) use ($lead) {
-                $q->whereJsonContains('service_areas', $lead->zip)
-                    ->orWhere('zip', $lead->zip);
-
-                if ($lead->city) {
-                    $city = strtolower(trim($lead->city));
-                    $q->orWhereRaw('LOWER(city) = ?', [$city])
-                        ->orWhereJsonContains('service_areas', $lead->city);
-                }
-
-                if ($lead->city && $lead->state) {
-                    $q->orWhere(function ($inner) use ($lead) {
-                        $inner->where('state', strtoupper($lead->state))
-                            ->whereRaw('LOWER(city) = ?', [strtolower(trim($lead->city))]);
-                    });
-                }
-            });
-
-        if (config('locknear.dispatch.require_subscription', false)) {
-            $query->whereHas('subscription', fn ($q) =>
-                $q->whereIn('status', ['active', 'trialing'])
-            );
-        }
-
-        return $query->count();
+        return DispatchMatching::countForLead($lead);
     }
 
     /**
@@ -215,7 +184,7 @@ class TrackPayload
                 'lat' => (float) $company->latitude,
                 'lng' => (float) $company->longitude,
                 'distance_km' => isset($company->distance_km) ? round((float) $company->distance_km, 1) : null,
-                'is_online' => (bool) $company->is_online,
+                'is_online' => $company->isDispatchEligible(),
                 'is_claimed' => (bool) $company->is_claimed,
             ])
             ->values()

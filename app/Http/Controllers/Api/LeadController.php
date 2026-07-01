@@ -251,11 +251,17 @@ class LeadController extends Controller
             'dispatch_fee_policy_version' => $lead->dispatch_fee_policy_version,
         ]);
 
-        dispatch(function () use ($lead) {
+        $leadId = $lead->id;
+        app()->terminating(function () use ($leadId) {
+            $freshLead = Lead::find($leadId);
+            if (!$freshLead) {
+                return;
+            }
+
             $dispatch = app(DispatchService::class);
-            $dispatch->sendCustomerTrackLink($lead);
-            $dispatch->dispatch($lead);
-        })->afterResponse();
+            $dispatch->sendCustomerTrackLink($freshLead);
+            $dispatch->dispatch($freshLead);
+        });
 
         return response()->json([
             'success' => true,

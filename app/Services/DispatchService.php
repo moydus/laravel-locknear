@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Lead;
 use App\Models\LeadAssignment;
 use App\Models\LeadToken;
+use App\Support\DispatchMatching;
 use App\Support\LeadPricing;
 use App\Support\LockNearUrls;
 use Illuminate\Support\Facades\Log;
@@ -35,9 +36,7 @@ class DispatchService
             );
         }
 
-        $sent = 0;
         $notified = 0;
-        $acceptMinutes = config('locknear.dispatch.accept_token_minutes', 30);
         $preferredId = $lead->preferred_company_id;
 
         $ordered = $companies;
@@ -51,59 +50,8 @@ class DispatchService
         }
 
         foreach ($ordered->take($maxRecipients) as $company) {
-            $assignment = LeadAssignment::firstOrCreate(
-                ['lead_id' => $lead->id, 'company_id' => $company->id],
-                [
-                    'status' => 'pending',
-                    'lead_cost' => LeadPricing::forService($lead->service_type),
-                ],
-            );
-
-            if ($assignment->status !== 'pending') {
-                continue;
-            }
-
-            $notified++;
-
-            $acceptToken = LeadToken::generate($lead->id, $company->id, 'accept', $acceptMinutes);
-            $rejectToken = LeadToken::generate($lead->id, $company->id, 'reject', $acceptMinutes);
-
-            $service = str($lead->service_type)->replace('-', ' ')->title();
-            $location = $lead->city ? "{$lead->city}, {$lead->state}" : "ZIP {$lead->zip}";
-            $acceptUrl = LockNearUrls::dispatchAccept($acceptToken->token);
-            $rejectUrl = LockNearUrls::dispatchReject($rejectToken->token);
-            $providerLeadUrl = LockNearUrls::providerLead($lead->id);
-
-            broadcast(new NewDispatchRequest(
-                $lead,
-                $company,
-                $acceptToken->token,
-                $rejectToken->token,
-                $acceptToken->expires_at,
-            ));
-
-            if (!$company->phone) {
-                continue;
-            }
-
-            if ($company->is_claimed) {
-                $body = "🔑 NEW JOB — LockNear\n"
-                    . "Service: {$service}\n"
-                    . "Location: {$location}\n\n"
-                    . "✅ ACCEPT: {$acceptUrl}\n"
-                    . "📱 Open in app: {$providerLeadUrl}\n"
-                    . "❌ PASS: {$rejectUrl}\n\n"
-                    . "First to accept wins. Expires in 30 min.";
-            } else {
-                $claimToken = $company->ensureClaimToken();
-                $body = "🔑 LockNear: Someone near you needs a {$service} in {$location}.\n\n"
-                    . "Claim your FREE locksmith profile to accept this job:\n"
-                    . LockNearUrls::providerApp() . "/claim/{$claimToken}\n\n"
-                    . "Takes 2 minutes. No credit card needed.";
-            }
-
-            if ($this->sendSms($company->phone, $body)) {
-                $sent++;
+            if ($this->offerLeadToCompany($lead, $company)) {
+                $notified++;
             }
         }
 
@@ -114,7 +62,64 @@ class DispatchService
             );
         }
 
-        return $sent;
+        return $notified;
+    }
+
+    public function offerLeadToCompany(Lead $lead, Company $company): bool
+    {
+        $assignment = LeadAssignment::firstOrCreate(
+            ['lead_id' => $lead->id, 'company_id' => $company->id],
+            [
+                'status' => 'pending',
+                'lead_cost' => LeadPricing::forService($lead->service_type),
+            ],
+        );
+
+        if ($assignment->status !== 'pending') {
+            return false;
+        }
+
+        $acceptMinutes = config('locknear.dispatch.accept_token_minutes', 30);
+        $acceptToken = LeadToken::generate($lead->id, $company->id, 'accept', $acceptMinutes);
+        $rejectToken = LeadToken::generate($lead->id, $company->id, 'reject', $acceptMinutes);
+
+        $service = str($lead->service_type)->replace('-', ' ')->title();
+        $location = $lead->city ? "{$lead->city}, {$lead->state}" : "ZIP {$lead->zip}";
+        $acceptUrl = LockNearUrls::dispatchAccept($acceptToken->token);
+        $rejectUrl = LockNearUrls::dispatchReject($rejectToken->token);
+        $providerLeadUrl = LockNearUrls::providerLead($lead->id);
+
+        broadcast(new NewDispatchRequest(
+            $lead,
+            $company,
+            $acceptToken->token,
+            $rejectToken->token,
+            $acceptToken->expires_at,
+        ));
+
+        if (!$company->phone) {
+            return true;
+        }
+
+        if ($company->is_claimed) {
+            $body = "🔑 NEW JOB — LockNear\n"
+                . "Service: {$service}\n"
+                . "Location: {$location}\n\n"
+                . "✅ ACCEPT: {$acceptUrl}\n"
+                . "📱 Open in app: {$providerLeadUrl}\n"
+                . "❌ PASS: {$rejectUrl}\n\n"
+                . "First to accept wins. Expires in 30 min.";
+        } else {
+            $claimToken = $company->ensureClaimToken();
+            $body = "🔑 LockNear: Someone near you needs a {$service} in {$location}.\n\n"
+                . "Claim your FREE locksmith profile to accept this job:\n"
+                . LockNearUrls::providerApp() . "/claim/{$claimToken}\n\n"
+                . "Takes 2 minutes. No credit card needed.";
+        }
+
+        $this->sendSms($company->phone, $body);
+
+        return true;
     }
 
     public function sendCustomerTrackLink(Lead $lead): void
@@ -230,40 +235,10 @@ class DispatchService
 
     private function findNearbyCompanies(Lead $lead)
     {
-        $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));
-
-        $query = Company::where('is_active', true)
-            ->where('is_online', true)
-            ->where('last_seen_at', '>=', $awayCutoff)
-            ->whereHas('services', fn ($q) =>
-                $q->where('service_type', $lead->service_type)->where('is_active', true)
-            )
-            ->where(function ($q) use ($lead) {
-                $q->whereJsonContains('service_areas', $lead->zip)
-                    ->orWhere('zip', $lead->zip);
-
-                if ($lead->city) {
-                    $city = strtolower(trim($lead->city));
-                    $q->orWhereRaw('LOWER(city) = ?', [$city])
-                        ->orWhereJsonContains('service_areas', $lead->city);
-                }
-
-                if ($lead->city && $lead->state) {
-                    $q->orWhere(function ($inner) use ($lead) {
-                        $inner->where('state', strtoupper($lead->state))
-                            ->whereRaw('LOWER(city) = ?', [strtolower(trim($lead->city))]);
-                    });
-                }
-            });
-
-        if (config('locknear.dispatch.require_subscription', false)) {
-            $query->whereHas('subscription', fn ($q) =>
-                $q->whereIn('status', ['active', 'trialing'])
-            );
-        }
+        $query = DispatchMatching::applyToQuery(Company::query(), $lead);
 
         // When the lead has coordinates, rank closer companies higher.
-        // ZIP match remains the primary filter; distance is a tiebreaker.
+        // Area match remains the primary filter; distance is a tiebreaker.
         if ($lead->latitude && $lead->longitude) {
             $lat = (float) $lead->latitude;
             $lng = (float) $lead->longitude;

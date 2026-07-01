@@ -207,6 +207,15 @@ class Company extends Model
             && $lastSeenAt->gte($awayCutoff);
     }
 
+    public function meetsDispatchBillingRequirements(): bool
+    {
+        if (!config('locknear.dispatch.require_subscription', false)) {
+            return true;
+        }
+
+        return $this->activeSubscription() !== null;
+    }
+
     public static function markStaleOffline(): int
     {
         $awayCutoff = now()->subMinutes(config('locknear.presence.away_minutes', 2));

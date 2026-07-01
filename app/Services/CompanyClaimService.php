@@ -8,10 +8,12 @@ use App\Models\Company;
 use App\Models\CompanyClaim;
 use App\Models\CompanyService;
 use App\Models\CompanyIdentity;
+use App\Models\Package;
 use App\Models\ProviderAccount;
 use App\Models\ProviderAccountUser;
 use App\Models\ProviderGrowthScore;
 use App\Models\ProviderInvitation;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -65,6 +67,7 @@ class CompanyClaimService
         ]);
 
         $this->syncDefaultServices($company->fresh(), $businessType);
+        $this->ensureDispatchSubscription($company->fresh());
 
         CompanyClaim::create([
             'company_id' => $company->id,
@@ -180,6 +183,30 @@ class CompanyClaimService
                 ['is_active' => true],
             );
         }
+    }
+
+    private function ensureDispatchSubscription(Company $company): void
+    {
+        if ($company->activeSubscription()) {
+            return;
+        }
+
+        $packageId = Package::query()->where('slug', 'free')->value('id')
+            ?? Package::query()->where('is_active', true)->orderBy('sort_order')->value('id');
+
+        if (!$packageId) {
+            return;
+        }
+
+        Subscription::create([
+            'company_id' => $company->id,
+            'package_id' => $packageId,
+            'status' => 'trialing',
+            'interval' => 'monthly',
+            'trial_ends_at' => now()->addYear(),
+            'current_period_start' => now(),
+            'current_period_end' => now()->addYear(),
+        ]);
     }
 
     private function normalizePhone(?string $phone): ?string

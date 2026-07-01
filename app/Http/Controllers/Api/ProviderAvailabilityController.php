@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\ProviderAvailability;
+use App\Services\OpenLeadDispatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -67,6 +68,10 @@ class ProviderAvailabilityController extends Controller
                 'is_active' => (bool) $validated['is_online'] ? true : $company->is_active,
                 'last_seen_at' => (bool) $validated['is_online'] ? now() : $company->last_seen_at,
             ])->save();
+
+            if ((bool) $validated['is_online']) {
+                app(OpenLeadDispatchService::class)->dispatchForCompany($company->fresh());
+            }
         }
 
         return response()->json(['data' => $this->payload($company->fresh(), $availability->fresh())]);

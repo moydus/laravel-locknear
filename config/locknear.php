@@ -23,9 +23,10 @@ return [
   | Dispatch
   |--------------------------------------------------------------------------
   */
-  'dispatch' => [
+    'dispatch' => [
     'accept_token_minutes' => (int) env('LOCKNEAR_DISPATCH_ACCEPT_MINUTES', 30),
     'require_subscription' => env('LOCKNEAR_DISPATCH_REQUIRE_SUBSCRIPTION', false),
+    'match_radius_km' => (float) env('LOCKNEAR_DISPATCH_MATCH_RADIUS_KM', 80),
     'lead_billing_enabled' => env('LOCKNEAR_LEAD_BILLING_ENABLED', false),
     'strategy' => env('LOCKNEAR_DISPATCH_STRATEGY', 'hybrid'),
     'max_parallel_offers' => (int) env('LOCKNEAR_DISPATCH_MAX_PARALLEL_OFFERS', 3),
