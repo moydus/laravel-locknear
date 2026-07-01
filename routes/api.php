@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\StripeConnectController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\WorkOrderController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -146,6 +147,15 @@ Route::get('/track/{token}/stream', function (string $token) {
 Route::get('/track/{token}/messages', [LeadMessageController::class, 'indexByTrackToken']);
 Route::post('/track/{token}/messages', [LeadMessageController::class, 'storeByTrackToken'])
     ->middleware('throttle:customer-messages');
+Route::middleware('throttle:20,1')->group(function () {
+    Route::get('/track/{token}/work-order', [WorkOrderController::class, 'customerShow']);
+    Route::post('/track/{token}/quotes/{quote}/approve', [WorkOrderController::class, 'approveQuote']);
+    Route::post('/track/{token}/quotes/{quote}/reject', [WorkOrderController::class, 'rejectQuote']);
+    Route::post('/track/{token}/signature', [WorkOrderController::class, 'sign']);
+    Route::post('/track/{token}/cancel', [WorkOrderController::class, 'cancel']);
+    Route::post('/track/{token}/disputes', [WorkOrderController::class, 'dispute']);
+    Route::get('/track/{token}/invoice', [WorkOrderController::class, 'invoice']);
+});
 
 Route::get('/companies', [CompanyController::class, 'index']);
 Route::get('/companies/{company}', [CompanyController::class, 'show']);
@@ -247,4 +257,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/jobs/{lead}/unable-to-verify', [LeadController::class, 'markUnableToVerify']);
     Route::post('/jobs/{lead}/complete', [LeadController::class, 'complete']);
     Route::post('/jobs/{lead}/location', [LeadController::class, 'updateLocation']);
+    Route::get('/jobs/{lead}/work-order', [WorkOrderController::class, 'providerShow']);
+    Route::post('/jobs/{lead}/quote', [WorkOrderController::class, 'proposeQuote']);
+    Route::post('/jobs/{lead}/evidence', [WorkOrderController::class, 'uploadEvidence']);
+    Route::get('/jobs/{lead}/evidence/{evidence}', [WorkOrderController::class, 'downloadEvidence']);
+    Route::post('/jobs/{lead}/start', [WorkOrderController::class, 'start']);
 });

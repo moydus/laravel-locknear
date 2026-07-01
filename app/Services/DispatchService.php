@@ -241,6 +241,19 @@ class DispatchService
             ->where(function ($q) use ($lead) {
                 $q->whereJsonContains('service_areas', $lead->zip)
                     ->orWhere('zip', $lead->zip);
+
+                if ($lead->city) {
+                    $city = strtolower(trim($lead->city));
+                    $q->orWhereRaw('LOWER(city) = ?', [$city])
+                        ->orWhereJsonContains('service_areas', $lead->city);
+                }
+
+                if ($lead->city && $lead->state) {
+                    $q->orWhere(function ($inner) use ($lead) {
+                        $inner->where('state', strtoupper($lead->state))
+                            ->whereRaw('LOWER(city) = ?', [strtolower(trim($lead->city))]);
+                    });
+                }
             });
 
         if (config('locknear.dispatch.require_subscription', false)) {

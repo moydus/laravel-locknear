@@ -34,6 +34,10 @@ class ClaimController extends Controller
                     'city'  => $company->city,
                     'state' => $company->state,
                     'phone' => $company->phone,
+                    'address' => $company->address,
+                    'formatted_address' => $company->formatted_address,
+                    'google_place_id' => $company->google_place_id,
+                    'zip' => $company->zip,
                 ],
             ]);
         }

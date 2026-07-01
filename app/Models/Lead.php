@@ -16,7 +16,9 @@ class Lead extends Model
         'authorization_confirmed', 'authorization_confirmed_at', 'authorization_disclaimer_version',
         'work_order_number', 'dispatch_fee_cents', 'dispatch_fee_currency',
         'dispatch_fee_policy_version', 'dispatch_fee_acknowledged', 'dispatch_fee_acknowledged_at',
-        'vehicle_make', 'vehicle_model', 'vehicle_year', 'vehicle_color', 'license_plate',
+        'vehicle_make', 'vehicle_model', 'vehicle_year', 'vehicle_color', 'license_plate', 'vin',
+        'vehicle_owned_or_authorized', 'registration_available', 'photo_id_available', 'document_names_match',
+        'customer_cancelled_at', 'customer_cancellation_reason',
     ];
 
     protected $casts = [
@@ -28,6 +30,11 @@ class Lead extends Model
         'dispatch_fee_cents' => 'integer',
         'dispatch_fee_acknowledged' => 'boolean',
         'dispatch_fee_acknowledged_at' => 'datetime',
+        'vehicle_owned_or_authorized' => 'boolean',
+        'registration_available' => 'boolean',
+        'photo_id_available' => 'boolean',
+        'document_names_match' => 'boolean',
+        'customer_cancelled_at' => 'datetime',
     ];
 
     public function assignments(): HasMany

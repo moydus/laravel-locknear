@@ -140,6 +140,8 @@ class PaymentIntentController extends Controller
 
     public function cancelPublic(Request $request, PaymentIntent $paymentIntent): JsonResponse
     {
+        $this->authorizePublicPaymentAccess($request, $paymentIntent);
+
         try {
             $this->payments->authorize([
                 'payment_intent_id' => $paymentIntent->id,
@@ -154,7 +156,7 @@ class PaymentIntentController extends Controller
             return response()->json(['data' => ['status' => $paymentIntent->status]]);
         }
 
-        if (!in_array($paymentIntent->status, ['requires_capture', 'requires_confirmation', 'requires_payment_method'], true)) {
+        if (! in_array($paymentIntent->status, ['requires_capture', 'requires_confirmation', 'requires_payment_method'], true)) {
             return response()->json(['error' => 'Payment intent cannot be cancelled.'], 422);
         }
 
@@ -175,6 +177,8 @@ class PaymentIntentController extends Controller
 
     public function authorizePublic(Request $request, PaymentIntent $paymentIntent): JsonResponse
     {
+        $this->authorizePublicPaymentAccess($request, $paymentIntent);
+
         try {
             $intent = $this->payments->authorize([
                 'payment_intent_id' => $paymentIntent->id,
@@ -213,7 +217,7 @@ class PaymentIntentController extends Controller
 
     private function resolveBooking(array $payload): ?Booking
     {
-        if (!empty($payload['booking_id'])) {
+        if (! empty($payload['booking_id'])) {
             return Booking::find($payload['booking_id']);
         }
 
@@ -222,14 +226,14 @@ class PaymentIntentController extends Controller
         }
 
         $lead = Lead::find($payload['lead_id']);
-        if (!$lead) {
+        if (! $lead) {
             return null;
         }
 
         return Booking::firstOrCreate(
             ['lead_id' => $lead->id],
             [
-                'public_id' => 'LK-' . strtoupper(Str::random(8)),
+                'public_id' => 'LK-'.strtoupper(Str::random(8)),
                 'status' => BookingState::Pending->value,
                 'estimated_min_amount' => $payload['metadata']['estimated_min'] ?? null,
                 'estimated_max_amount' => $payload['metadata']['estimated_max'] ?? null,
@@ -248,5 +252,20 @@ class PaymentIntentController extends Controller
         if ($paymentIntent->company_id) {
             abort_unless((int) $paymentIntent->company_id === (int) $company->id, 403);
         }
+    }
+
+    private function authorizePublicPaymentAccess(Request $request, PaymentIntent $paymentIntent): void
+    {
+        $validated = $request->validate([
+            'authorization_token' => ['required', 'string', 'min:32', 'max:255'],
+        ]);
+        abort_unless(
+            hash_equals(
+                (string) ($paymentIntent->metadata['authorization_token_hash'] ?? ''),
+                hash('sha256', $validated['authorization_token']),
+            ),
+            403,
+            'Invalid payment authorization token.',
+        );
     }
 }

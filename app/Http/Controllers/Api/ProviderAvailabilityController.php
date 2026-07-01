@@ -43,10 +43,16 @@ class ProviderAvailabilityController extends Controller
 
         $availability = $this->availabilityFor($company);
 
-        if (($validated['is_online'] ?? null) === true && (!$company->phone || !$company->address)) {
+        if (($validated['is_online'] ?? null) === true) {
+            $hasLocation = filled($company->address)
+                || filled($company->formatted_address)
+                || (filled($company->city) && filled($company->zip));
+
+            if (!$company->phone || !$hasLocation) {
             return response()->json([
-                'message' => 'Complete your phone number and address before going online.',
+                'message' => 'Complete your phone number and service area before going online.',
             ], 422);
+        }
         }
 
         if (($validated['is_online'] ?? null) === true) {

@@ -22,7 +22,7 @@ class CompanyController extends Controller
         }
 
         $query = Company::where('is_active', true)
-            ->with('services:id,company_id,service_type,is_active')
+            ->with('services:id,company_id,service_type,is_active', 'providerAvailability')
             ->select([
                 'id', 'name', 'slug', 'phone', 'website', 'address', 'city', 'state', 'zip',
                 'latitude', 'longitude', 'rating', 'review_count',
@@ -271,6 +271,9 @@ class CompanyController extends Controller
             if ($company->claim_token) {
                 $data['claim_url'] = LockNearUrls::providerApp() . '/claim/' . $company->claim_token;
             }
+        } else {
+            $data['dispatch_eligible'] = $company->isDispatchEligible();
+            $data['availability_status'] = $company->availabilityStatus();
         }
 
         return $data;

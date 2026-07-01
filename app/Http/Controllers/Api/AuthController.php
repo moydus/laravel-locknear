@@ -127,6 +127,8 @@ class AuthController extends Controller
                 'state' => $company->state,
                 'phone' => $company->phone,
                 'zip' => $company->zip,
+                'address' => $company->address,
+                'formatted_address' => $company->formatted_address,
             ] : null,
         ];
     }
