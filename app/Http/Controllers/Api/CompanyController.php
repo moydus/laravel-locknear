@@ -26,7 +26,7 @@ class CompanyController extends Controller
             ->select([
                 'id', 'name', 'slug', 'phone', 'website', 'address', 'city', 'state', 'zip',
                 'latitude', 'longitude', 'rating', 'review_count',
-                'is_verified', 'is_claimed', 'logo_url', 'description',
+                'is_verified', 'is_claimed', 'claim_token', 'logo_url', 'description',
             ]);
 
         if ($request->filled('zip')) {
