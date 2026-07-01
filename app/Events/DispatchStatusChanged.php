@@ -33,12 +33,18 @@ class DispatchStatusChanged implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
+        $lat = $this->company->latitude;
+        $lng = $this->company->longitude;
+        $hasCoords = is_numeric($lat) && is_numeric($lng)
+            && abs((float) $lat) > 0.0001
+            && abs((float) $lng) > 0.0001;
+
         return [
             'status'       => $this->status,
             'company_name' => $this->company->name,
             'company_phone'=> $this->company->phone,
-            'lat'          => $this->company->latitude,
-            'lng'          => $this->company->longitude,
+            'lat'          => $hasCoords ? (float) $lat : null,
+            'lng'          => $hasCoords ? (float) $lng : null,
         ];
     }
 }
