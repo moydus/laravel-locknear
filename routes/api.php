@@ -79,13 +79,22 @@ Route::middleware(['throttle:5,1', 'api.key'])->group(function () {
             return response()->json(['error' => 'Lead is not open for dispatch'], 409);
         }
 
-        $offered = app(\App\Services\DispatchService::class)->dispatch($lead->fresh());
+        try {
+            $offered = app(\App\Services\DispatchService::class)->dispatch($lead->fresh());
 
-        return response()->json([
-            'success' => true,
-            'offered' => $offered,
-            'dispatch' => \App\Support\TrackPayload::dispatchMeta($lead->fresh()),
-        ]);
+            return response()->json([
+                'success' => true,
+                'offered' => $offered,
+                'dispatch' => \App\Support\TrackPayload::dispatchMeta($lead->fresh()),
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'error' => 'Dispatch failed',
+                'message' => app()->isProduction() ? 'Server Error' : $exception->getMessage(),
+            ], 500);
+        }
     });
     Route::post('/payment-intents', [PaymentIntentController::class, 'store']);
     Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorizePublic']);

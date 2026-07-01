@@ -89,13 +89,20 @@ class DispatchService
         $rejectUrl = LockNearUrls::dispatchReject($rejectToken->token);
         $providerLeadUrl = LockNearUrls::providerLead($lead->id);
 
-        broadcast(new NewDispatchRequest(
-            $lead,
-            $company,
-            $acceptToken->token,
-            $rejectToken->token,
-            $acceptToken->expires_at,
-        ));
+        try {
+            broadcast(new NewDispatchRequest(
+                $lead,
+                $company,
+                $acceptToken->token,
+                $rejectToken->token,
+                $acceptToken->expires_at,
+            ));
+        } catch (\Throwable $exception) {
+            Log::warning('Dispatch broadcast failed: ' . $exception->getMessage(), [
+                'lead_id' => $lead->id,
+                'company_id' => $company->id,
+            ]);
+        }
 
         if (!$company->phone) {
             return true;
@@ -237,21 +244,16 @@ class DispatchService
     {
         $query = DispatchMatching::applyToQuery(Company::query(), $lead);
 
-        // When the lead has coordinates, rank closer companies higher.
-        // Area match remains the primary filter; distance is a tiebreaker.
         if ($lead->latitude && $lead->longitude) {
             $lat = (float) $lead->latitude;
             $lng = (float) $lead->longitude;
-            $query->selectRaw(
-                'companies.*, (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance_km',
+            $query->orderByRaw(
+                '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))',
                 [$lat, $lng, $lat],
-            )->orderByDesc('is_claimed')
-             ->orderByRaw('distance_km IS NULL')
-             ->orderBy('distance_km')
-             ->orderByDesc('rating');
-        } else {
-            $query->orderByDesc('is_claimed')->orderByDesc('rating');
+            );
         }
+
+        $query->orderByDesc('is_claimed')->orderByDesc('rating');
 
         if ($lead->preferred_company_id) {
             $query->orderByRaw('CASE WHEN companies.id = ? THEN 0 ELSE 1 END', [$lead->preferred_company_id]);
