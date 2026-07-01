@@ -54,7 +54,7 @@ class CompanyMediaController extends Controller
 
         $validated = $request->validate([
             'file' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:6144'],
-            'type' => ['nullable', 'string', Rule::in(['logo', 'gallery', 'team', 'vehicle', 'license'])],
+            'type' => ['nullable', 'string', Rule::in(['logo', 'cover', 'gallery', 'team', 'vehicle', 'license'])],
             'is_public' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'metadata' => ['nullable', 'array'],

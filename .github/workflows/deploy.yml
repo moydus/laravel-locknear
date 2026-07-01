@@ -5,7 +5,27 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+      - run: composer install --no-interaction --prefer-dist
+      - run: cp .env.example .env
+      - run: php artisan key:generate
+      - run: composer audit --locked --no-interaction
+      - run: composer test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
@@ -15,14 +35,24 @@ jobs:
           username: locknear-deployer
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/laravel-locknear
-            git pull origin main
+            git fetch origin main
+            git diff --quiet -- . ':!public/js/filament' ':!.env' || { echo 'Unexpected production changes; deploy stopped'; exit 1; }
+            git restore public/js/filament 2>/dev/null || true
+            git merge --ff-only origin/main
             composer install --no-dev --optimize-autoloader --no-interaction
+            php artisan down --retry=30 || true
+            trap 'php artisan up' EXIT
+            php artisan migrate --force
+            php artisan locknear:sync-package-prices || true
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
-            php artisan migrate --force
             sudo supervisorctl restart locknear-horizon
             sudo supervisorctl restart locknear-reverb
             sudo supervisorctl restart locknear-scheduler
-            echo "Deploy tamamlandı"
+            php artisan up
+            trap - EXIT
+            curl --fail --silent --show-error --retry 5 https://api.locknear.com/up >/dev/null
+            echo "Deploy and health check completed"
