@@ -72,6 +72,21 @@ Route::middleware('auth:sanctum')->group(function () {
 // Public API routes (Astro site uses these — X-API-Key required)
 Route::middleware(['throttle:5,1', 'api.key'])->group(function () {
     Route::post('/leads', [LeadController::class, 'store']);
+    Route::post('/track/{token}/redispatch', function (string $token) {
+        $lead = \App\Models\Lead::where('customer_token', $token)->firstOrFail();
+
+        if ($lead->status !== 'new') {
+            return response()->json(['error' => 'Lead is not open for dispatch'], 409);
+        }
+
+        $offered = app(\App\Services\DispatchService::class)->dispatch($lead->fresh());
+
+        return response()->json([
+            'success' => true,
+            'offered' => $offered,
+            'dispatch' => \App\Support\TrackPayload::dispatchMeta($lead->fresh()),
+        ]);
+    });
     Route::post('/payment-intents', [PaymentIntentController::class, 'store']);
     Route::post('/payment-intents/{paymentIntent}/authorize', [PaymentIntentController::class, 'authorizePublic']);
     Route::post('/payment-intents/{paymentIntent}/cancel', [PaymentIntentController::class, 'cancelPublic']);
