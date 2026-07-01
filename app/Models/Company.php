@@ -57,6 +57,17 @@ class Company extends Model
         });
     }
 
+    public function resolveRouteBinding($value, $field = null): ?static
+    {
+        if ($field) {
+            return $this->where($field, $value)->first();
+        }
+
+        $column = is_numeric($value) ? 'id' : 'slug';
+
+        return $this->where($column, $value)->first();
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

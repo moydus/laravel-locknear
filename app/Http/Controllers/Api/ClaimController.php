@@ -26,19 +26,38 @@ class ClaimController extends Controller
     {
         $company = $this->claims->findClaimableCompany($token);
 
-        if (!$company) {
-            return response()->json(['error' => 'Invalid or expired claim link'], 404);
+        if ($company) {
+            return response()->json([
+                'company' => [
+                    'id'    => $company->id,
+                    'name'  => $company->name,
+                    'city'  => $company->city,
+                    'state' => $company->state,
+                    'phone' => $company->phone,
+                ],
+            ]);
         }
 
-        return response()->json([
-            'company' => [
-                'id'    => $company->id,
-                'name'  => $company->name,
-                'city'  => $company->city,
-                'state' => $company->state,
-                'phone' => $company->phone,
-            ],
-        ]);
+        $claimed = CompanyClaim::query()
+            ->where('verification_method', 'claim_token')
+            ->where('metadata->claim_token', $token)
+            ->with('company:id,name,city,state,is_claimed')
+            ->first();
+
+        if ($claimed?->company?->is_claimed) {
+            return response()->json([
+                'error' => 'This listing has already been claimed. Sign in to your provider dashboard.',
+                'already_claimed' => true,
+                'company' => [
+                    'id' => $claimed->company->id,
+                    'name' => $claimed->company->name,
+                    'city' => $claimed->company->city,
+                    'state' => $claimed->company->state,
+                ],
+            ], 409);
+        }
+
+        return response()->json(['error' => 'Invalid or expired claim link'], 404);
     }
 
     // POST /claim/{token}  — mevcut oturumdaki kullanıcıya firmayı bağlar
@@ -47,6 +66,18 @@ class ClaimController extends Controller
         $company = $this->claims->findClaimableCompany($token);
 
         if (!$company) {
+            $claimed = CompanyClaim::query()
+                ->where('verification_method', 'claim_token')
+                ->where('metadata->claim_token', $token)
+                ->whereHas('company', fn ($query) => $query->where('is_claimed', true))
+                ->exists();
+
+            if ($claimed) {
+                return response()->json([
+                    'error' => 'This listing has already been claimed.',
+                ], 409);
+            }
+
             return response()->json(['error' => 'Invalid or expired claim link'], 404);
         }
 

@@ -50,6 +50,7 @@ class CompanyClaimService
         }
 
         $businessType = $company->business_type ?: self::DEFAULT_CLAIM_BUSINESS_TYPE;
+        $claimToken = $company->claim_token;
 
         $company->update([
             'user_id' => $user->id,
@@ -74,7 +75,10 @@ class CompanyClaimService
             'verification_target' => $company->phone ?: $company->email,
             'claimed_at' => now(),
             'approved_at' => now(),
-            'metadata' => ['source' => 'claim_link'],
+            'metadata' => [
+                'source' => 'claim_link',
+                'claim_token' => $claimToken,
+            ],
         ]);
 
         $this->bootstrapProviderAccount($company, $user->id, true);
