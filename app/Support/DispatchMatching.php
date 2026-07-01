@@ -16,7 +16,10 @@ class DispatchMatching
             ->where('is_online', true)
             ->where('last_seen_at', '>=', $awayCutoff)
             ->whereHas('services', fn ($q) =>
-                $q->where('service_type', $lead->service_type)->where('is_active', true)
+                $q->where('service_type', $lead->service_type)
+                    ->where('is_active', true)
+                    ->whereNotNull('price')
+                    ->where('price', '>', 0)
             )
             ->where(function ($q) use ($lead) {
                 self::applyAreaMatch($q, $lead);
@@ -52,7 +55,7 @@ class DispatchMatching
             return false;
         }
 
-        if (!$company->services()->where('service_type', $lead->service_type)->where('is_active', true)->exists()) {
+        if (!$company->services()->where('service_type', $lead->service_type)->where('is_active', true)->where('price', '>', 0)->exists()) {
             return false;
         }
 

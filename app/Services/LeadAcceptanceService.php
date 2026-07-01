@@ -37,7 +37,14 @@ class LeadAcceptanceService
                 throw new LeadBillingException('Lead already accepted by another company.', 'already_taken');
             }
 
-            $leadCost = LeadPricing::forService($lead->service_type);
+            $leadCost = LeadPricing::forCompanyService($company, $lead->service_type);
+
+            if ($leadCost === null) {
+                throw new LeadBillingException(
+                    'Set your listed price for this service before accepting jobs.',
+                    'pricing_required',
+                );
+            }
 
             $assignment = LeadAssignment::firstOrNew([
                 'lead_id' => $lead->id,

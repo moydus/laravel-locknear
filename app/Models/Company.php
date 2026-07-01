@@ -204,7 +204,8 @@ class Company extends Model
         return $this->is_active
             && $isOnline
             && $lastSeenAt
-            && $lastSeenAt->gte($awayCutoff);
+            && $lastSeenAt->gte($awayCutoff)
+            && $this->hasServicePricingComplete();
     }
 
     public function meetsDispatchBillingRequirements(): bool
@@ -214,6 +215,33 @@ class Company extends Model
         }
 
         return $this->activeSubscription() !== null;
+    }
+
+    public function servicePriceFor(string $serviceType): ?float
+    {
+        $service = $this->relationLoaded('services')
+            ? $this->services->first(fn ($row) => $row->service_type === $serviceType && $row->is_active)
+            : $this->services()
+                ->where('service_type', $serviceType)
+                ->where('is_active', true)
+                ->first();
+
+        if (!$service || $service->price === null) {
+            return null;
+        }
+
+        $price = (float) $service->price;
+
+        return $price > 0 ? $price : null;
+    }
+
+    public function hasServicePricingComplete(): bool
+    {
+        return $this->services()
+            ->where('is_active', true)
+            ->whereNotNull('price')
+            ->where('price', '>', 0)
+            ->exists();
     }
 
     public static function markStaleOffline(): int

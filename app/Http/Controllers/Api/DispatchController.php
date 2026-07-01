@@ -76,7 +76,7 @@ class DispatchController extends Controller
                 ['lead_id' => $lead->id, 'company_id' => $company->id],
                 [
                     'status' => 'pending',
-                    'lead_cost' => LeadPricing::forService($lead->service_type),
+                    'lead_cost' => LeadPricing::forCompanyService($company, $lead->service_type) ?? 0,
                 ],
             );
 

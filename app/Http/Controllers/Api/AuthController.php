@@ -129,6 +129,7 @@ class AuthController extends Controller
                 'zip' => $company->zip,
                 'address' => $company->address,
                 'formatted_address' => $company->formatted_address,
+                'services_pricing_complete' => $company->hasServicePricingComplete(),
             ] : null,
         ];
     }

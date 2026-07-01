@@ -54,6 +54,13 @@ class ProviderAvailabilityController extends Controller
                     'message' => 'Complete your phone number and service area before going online.',
                 ], 422);
             }
+
+            if (!$company->hasServicePricingComplete()) {
+                return response()->json([
+                    'message' => 'Add your service prices before going online. Customers see your listed rates when booking.',
+                    'redirect' => '/services?setup=1',
+                ], 422);
+            }
         }
 
         if (($validated['is_online'] ?? null) === true) {

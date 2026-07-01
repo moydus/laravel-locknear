@@ -67,11 +67,17 @@ class DispatchService
 
     public function offerLeadToCompany(Lead $lead, Company $company): bool
     {
+        $listedPrice = LeadPricing::forCompanyService($company, $lead->service_type);
+
+        if ($listedPrice === null) {
+            return false;
+        }
+
         $assignment = LeadAssignment::firstOrCreate(
             ['lead_id' => $lead->id, 'company_id' => $company->id],
             [
                 'status' => 'pending',
-                'lead_cost' => LeadPricing::forService($lead->service_type),
+                'lead_cost' => $listedPrice,
             ],
         );
 

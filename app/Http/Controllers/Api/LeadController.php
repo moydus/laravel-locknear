@@ -427,7 +427,7 @@ class LeadController extends Controller
 
         $assignment = LeadAssignment::firstOrCreate(
             ['lead_id' => $lead->id, 'company_id' => $company->id],
-            ['lead_cost' => LeadPricing::forService($lead->service_type)],
+            ['lead_cost' => LeadPricing::forCompanyService($company, $lead->service_type) ?? 0],
         );
 
         if ($assignment->status !== 'pending') {

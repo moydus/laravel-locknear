@@ -40,8 +40,19 @@ class ServiceController extends Controller
             'services'             => ['required', 'array'],
             'services.*.type'      => ['required', 'string', 'in:' . implode(',', self::ALLOWED)],
             'services.*.is_active' => ['required', 'boolean'],
-            'services.*.price'     => ['nullable', 'numeric', 'min:0'],
+            'services.*.price'     => ['nullable', 'numeric', 'min:25', 'max:10000'],
         ]);
+
+        foreach ($validated['services'] as $index => $svc) {
+            if (($svc['is_active'] ?? false) && (!isset($svc['price']) || (float) $svc['price'] <= 0)) {
+                return response()->json([
+                    'message' => 'Each enabled service needs a listed price of at least $25.',
+                    'errors' => [
+                        "services.{$index}.price" => ['Enter your flat rate for this service.'],
+                    ],
+                ], 422);
+            }
+        }
 
         foreach ($validated['services'] as $svc) {
             CompanyService::updateOrCreate(
