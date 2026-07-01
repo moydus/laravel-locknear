@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\VerifyEmailMail;
 use App\Models\User;
+use App\Services\CompanyClaimService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -13,14 +14,25 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(private CompanyClaimService $claims) {}
+
     public function register(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'company_name' => ['required', 'string', 'max:255'],
+            'company_name' => ['required_without:claim_token', 'nullable', 'string', 'max:255'],
+            'claim_token' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $claimCompany = !empty($validated['claim_token'])
+            ? $this->claims->findClaimableCompany($validated['claim_token'])
+            : null;
+
+        if (!empty($validated['claim_token']) && !$claimCompany) {
+            return response()->json(['error' => 'Invalid or expired claim link'], 422);
+        }
 
         $user = User::create([
             'name' => $validated['name'],
@@ -29,11 +41,15 @@ class AuthController extends Controller
             'role' => User::ROLE_BUSINESS,
         ]);
 
-        $company = \App\Models\Company::create([
-            'user_id' => $user->id,
-            'name' => $validated['company_name'],
-            'slug' => str($validated['company_name'])->slug()->append('-' . $user->id),
-        ]);
+        if ($claimCompany) {
+            $this->claims->claimForUser($claimCompany, $user);
+        } else {
+            \App\Models\Company::create([
+                'user_id' => $user->id,
+                'name' => $validated['company_name'],
+                'slug' => str($validated['company_name'])->slug()->append('-' . $user->id),
+            ]);
+        }
 
         try {
             Mail::to($user)->send(new VerifyEmailMail($user));

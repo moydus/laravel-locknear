@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Services\CompanyClaimService;
+use App\Support\LockNearUrls;
 use App\Models\ProviderAvailability;
 use App\Models\ProviderServiceArea;
 use Illuminate\Http\JsonResponse;
@@ -266,6 +268,9 @@ class CompanyController extends Controller
             $data['latitude'] = null;
             $data['longitude'] = null;
             $data['zip'] = null;
+            if ($company->claim_token) {
+                $data['claim_url'] = LockNearUrls::providerApp() . '/claim/' . $company->claim_token;
+            }
         }
 
         return $data;

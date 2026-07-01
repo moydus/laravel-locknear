@@ -1,10 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Services;
 
 use App\Enums\CompanyLifecycleStatus;
 use App\Enums\ProviderStatus;
-use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\CompanyClaim;
 use App\Models\CompanyIdentity;
@@ -12,100 +11,78 @@ use App\Models\ProviderAccount;
 use App\Models\ProviderAccountUser;
 use App\Models\ProviderGrowthScore;
 use App\Models\ProviderInvitation;
-use App\Services\CompanyClaimService;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
-class ClaimController extends Controller
+class CompanyClaimService
 {
-    public function __construct(private CompanyClaimService $claims) {}
-
-    // GET /claim/{token}  — token bilgisini döner (panel sayfası yüklenirken)
-    public function show(string $token): JsonResponse
+    public function findClaimableCompany(string $token): ?Company
     {
-        $company = $this->claims->findClaimableCompany($token);
-
-        if (!$company) {
-            return response()->json(['error' => 'Invalid or expired claim link'], 404);
-        }
-
-        return response()->json([
-            'company' => [
-                'id'    => $company->id,
-                'name'  => $company->name,
-                'city'  => $company->city,
-                'state' => $company->state,
-                'phone' => $company->phone,
-            ],
-        ]);
+        return Company::where('claim_token', $token)
+            ->whereNull('deleted_at')
+            ->where('is_claimed', false)
+            ->first();
     }
 
-    // POST /claim/{token}  — mevcut oturumdaki kullanıcıya firmayı bağlar
-    public function claim(Request $request, string $token): JsonResponse
+    public function claimForUser(Company $company, User $user): Company
     {
-        $company = $this->claims->findClaimableCompany($token);
-
-        if (!$company) {
-            return response()->json(['error' => 'Invalid or expired claim link'], 404);
+        if ($company->is_claimed) {
+            throw ValidationException::withMessages([
+                'claim_token' => ['This listing has already been claimed.'],
+            ]);
         }
 
-        $company = $this->claims->claimForUser($company, $request->user());
-
-        return $this->claims->claimResponse($company);
-    }
-
-    // POST /claim/manual  — claim token olmadan yeni firma oluşturur (doğrudan kayıt)
-    public function manual(Request $request): JsonResponse
-    {
-        $user = $request->user();
-
-        if ($user->company) {
-            return response()->json(['error' => 'Already has a company'], 422);
+        if ($user->company && (int) $user->company->id !== (int) $company->id) {
+            throw ValidationException::withMessages([
+                'claim_token' => ['Your account is already linked to another company.'],
+            ]);
         }
 
-        $validated = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
-            'zip'   => ['required', 'string', 'size:5'],
-            'city'  => ['required', 'string', 'max:100'],
-            'state' => ['required', 'string', 'size:2'],
-        ]);
-
-        $company = Company::create([
-            'user_id'    => $user->id,
-            'name'       => $validated['name'],
-            'slug'       => str($validated['name'])->slug()->append('-' . Str::random(6)),
-            'phone'      => $validated['phone'],
-            'zip'        => $validated['zip'],
-            'city'       => $validated['city'],
-            'state'      => strtoupper($validated['state']),
+        $company->update([
+            'user_id' => $user->id,
             'is_claimed' => true,
-            'is_active'  => false,
-            'provider_status' => ProviderStatus::Pending,
-            'lifecycle_status' => CompanyLifecycleStatus::ClaimPending,
+            'is_active' => true,
+            'provider_status' => ProviderStatus::Verified,
+            'lifecycle_status' => CompanyLifecycleStatus::Active,
             'claimed_at' => now(),
-            'source'     => 'manual',
+            'claim_token' => null,
+            'source' => 'claimed',
         ]);
 
         CompanyClaim::create([
             'company_id' => $company->id,
             'user_id' => $user->id,
-            'status' => 'pending',
-            'verification_method' => 'manual',
-            'verification_channel' => 'app',
-            'verification_target' => $validated['phone'],
+            'status' => 'approved',
+            'verification_method' => 'claim_token',
+            'verification_channel' => 'link',
+            'verification_target' => $company->phone ?: $company->email,
             'claimed_at' => now(),
-            'metadata' => ['source' => 'manual_signup'],
+            'approved_at' => now(),
+            'metadata' => ['source' => 'claim_link'],
         ]);
 
-        $this->bootstrapProviderAccount($company, $user->id, false);
-        $this->upsertCompanyIdentity($company, 'manual');
+        $this->bootstrapProviderAccount($company, $user->id, true);
+        $this->upsertCompanyIdentity($company, 'claimed');
 
+        ProviderInvitation::query()
+            ->where('company_id', $company->id)
+            ->whereNull('accepted_at')
+            ->update([
+                'status' => 'accepted',
+                'accepted_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        return $company->fresh();
+    }
+
+    public function claimResponse(Company $company): JsonResponse
+    {
         return response()->json([
             'success' => true,
             'company' => ['id' => $company->id, 'name' => $company->name],
-        ], 201);
+        ]);
     }
 
     private function bootstrapProviderAccount(Company $company, int $userId, bool $verified): void
