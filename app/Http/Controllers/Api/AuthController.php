@@ -121,6 +121,12 @@ class AuthController extends Controller
                 'name' => $company->name,
                 'business_type' => $company->business_type,
                 'onboarding_completed_at' => $company->onboarding_completed_at?->toIso8601String(),
+                'is_claimed' => (bool) $company->is_claimed,
+                'source' => $company->source,
+                'city' => $company->city,
+                'state' => $company->state,
+                'phone' => $company->phone,
+                'zip' => $company->zip,
             ] : null,
         ];
     }

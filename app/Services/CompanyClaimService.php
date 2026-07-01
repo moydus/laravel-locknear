@@ -6,6 +6,7 @@ use App\Enums\CompanyLifecycleStatus;
 use App\Enums\ProviderStatus;
 use App\Models\Company;
 use App\Models\CompanyClaim;
+use App\Models\CompanyService;
 use App\Models\CompanyIdentity;
 use App\Models\ProviderAccount;
 use App\Models\ProviderAccountUser;
@@ -17,6 +18,15 @@ use Illuminate\Validation\ValidationException;
 
 class CompanyClaimService
 {
+    private const DEFAULT_CLAIM_BUSINESS_TYPE = 'mobile-24-7';
+
+    private const BUSINESS_SERVICES = [
+        'residential' => ['house-lockout', 'lock-rekey', 'emergency'],
+        'commercial' => ['commercial', 'lock-rekey'],
+        'automotive' => ['car-lockout', 'car-key-replacement', 'key-fob-programming'],
+        'mobile-24-7' => ['house-lockout', 'car-lockout', 'commercial', 'emergency', '24-hour-locksmith'],
+    ];
+
     public function findClaimableCompany(string $token): ?Company
     {
         return Company::where('claim_token', $token)
@@ -39,6 +49,8 @@ class CompanyClaimService
             ]);
         }
 
+        $businessType = $company->business_type ?: self::DEFAULT_CLAIM_BUSINESS_TYPE;
+
         $company->update([
             'user_id' => $user->id,
             'is_claimed' => true,
@@ -48,7 +60,10 @@ class CompanyClaimService
             'claimed_at' => now(),
             'claim_token' => null,
             'source' => 'claimed',
+            'business_type' => $businessType,
         ]);
+
+        $this->syncDefaultServices($company->fresh(), $businessType);
 
         CompanyClaim::create([
             'company_id' => $company->id,
@@ -149,6 +164,18 @@ class CompanyClaimService
                 ],
             ],
         );
+    }
+
+    private function syncDefaultServices(Company $company, string $businessType): void
+    {
+        $types = self::BUSINESS_SERVICES[$businessType] ?? [];
+
+        foreach ($types as $serviceType) {
+            CompanyService::updateOrCreate(
+                ['company_id' => $company->id, 'service_type' => $serviceType],
+                ['is_active' => true],
+            );
+        }
     }
 
     private function normalizePhone(?string $phone): ?string
